@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import { Toaster } from "sonner";
 
 function NotFoundComponent() {
   return (
@@ -72,19 +73,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Opus Magna Studio — Bestsellers con IA" },
+      { name: "description", content: "Estudio enterprise para escribir, diseñar y publicar bestsellers asistidos por IA." },
+      { name: "author", content: "Opus Magna Studio" },
+      { property: "og:title", content: "Opus Magna Studio" },
+      { property: "og:description", content: "Estudio enterprise para escribir bestsellers con IA." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
     ],
     links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: appCss,
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Merriweather:wght@300;400;700&family=Montserrat:wght@500;700;800&display=swap",
       },
     ],
   }),
@@ -114,6 +118,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <Toaster position="bottom-right" richColors closeButton theme="light" />
     </QueryClientProvider>
   );
 }
