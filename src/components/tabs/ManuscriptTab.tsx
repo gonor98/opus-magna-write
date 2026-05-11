@@ -391,8 +391,8 @@ export function ManuscriptTab() {
         active && (
           <Editor
             chapter={active}
-            onChange={(v) => updateChapter(active.id, { content: v })}
-            onTitleChange={(v) => updateChapter(active.id, { title: v })}
+            onChange={(v: string) => updateChapter(active.id, { content: v })}
+            onTitleChange={(v: string) => updateChapter(active.id, { title: v })}
             editorRef={editorRef}
             onSelect={onTextSelect}
             selection={selection}
