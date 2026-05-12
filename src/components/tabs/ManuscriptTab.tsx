@@ -212,7 +212,9 @@ export function ManuscriptTab() {
 
   const inlineEdit = async (action: "expand" | "rewrite" | "bestseller" | "shorten") => {
     if (!active || !selection.text) return;
-    saveSnapshot(active.id, `IA · ${action}`);
+    const prevContent = active.content;
+    const activeId = active.id;
+    saveSnapshot(activeId, `IA · ${action}`);
     setBusy("inline");
     try {
       const { text } = await inlineFn({
@@ -220,9 +222,14 @@ export function ManuscriptTab() {
       });
       const v = active.content;
       const next = v.slice(0, selection.start) + text + v.slice(selection.end);
-      updateChapter(active.id, { content: next });
+      updateChapter(activeId, { content: next });
       setSelection({ text: "", start: 0, end: 0 });
-      toast.success("Edición aplicada");
+      toast.success("Edición aplicada", {
+        action: {
+          label: "Deshacer",
+          onClick: () => updateChapter(activeId, { content: prevContent }),
+        },
+      });
     } catch (e: any) {
       toast.error(e.message || "Error en edición IA");
     } finally {
