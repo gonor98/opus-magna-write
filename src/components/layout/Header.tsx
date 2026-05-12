@@ -1,9 +1,10 @@
-import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles } from "lucide-react";
+import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useBookStore, wordCount } from "@/lib/store";
 import { toast } from "sonner";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { ExportModal } from "@/components/ExportModal";
 
 type Props = {
   focusMode: boolean;
@@ -15,6 +16,7 @@ export function Header({ focusMode, setFocusMode }: Props) {
   const bookContext = useBookStore((s) => s.bookContext);
   const importProject = useBookStore((s) => s.importProject);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const wc = wordCount(chapters);
 
@@ -94,6 +96,13 @@ export function Header({ focusMode, setFocusMode }: Props) {
             <Download className="mr-1.5 h-4 w-4" /> Backup
           </Button>
           <Button
+            size="sm"
+            className="primary-gradient text-primary-foreground shadow-soft transition hover:scale-[1.02]"
+            onClick={() => setExportOpen(true)}
+          >
+            <FileDown className="mr-1.5 h-4 w-4" /> Exportar
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             onClick={() => {
@@ -107,6 +116,7 @@ export function Header({ focusMode, setFocusMode }: Props) {
           </Button>
         </div>
       </div>
+      <ExportModal open={exportOpen} onOpenChange={setExportOpen} />
     </header>
   );
 }

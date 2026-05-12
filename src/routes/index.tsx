@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { maybeSeedDemo } from "@/lib/demo";
 import { Header } from "@/components/layout/Header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthorDNATab } from "@/components/tabs/AuthorDNATab";
@@ -16,6 +17,10 @@ export const Route = createFileRoute("/")({
 function Studio() {
   const [tab, setTab] = useState("dna");
   const [focus, setFocus] = useState(false);
+
+  useEffect(() => {
+    maybeSeedDemo();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">

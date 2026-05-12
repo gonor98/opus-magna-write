@@ -149,6 +149,7 @@ export function ManuscriptTab() {
   const writeChapter = async (id: string) => {
     const ch = chapters.find((c) => c.id === id);
     if (!ch) return;
+    const prevContent = ch.content;
     saveSnapshot(id, "Pre-redacción IA");
     setBusy("write-" + id);
     try {
@@ -161,14 +162,21 @@ export function ManuscriptTab() {
         },
       });
       updateChapter(id, { content: text });
-      // append to story bible (light)
       setStoryBible(
         (storyBible ? storyBible + "\n\n" : "") +
           `[${ch.title}]\n` +
           text.split(/\s+/).slice(0, 60).join(" ") +
           "…",
       );
-      toast.success("Capítulo redactado");
+      toast.success("Capítulo redactado", {
+        action: {
+          label: "Deshacer",
+          onClick: () => {
+            updateChapter(id, { content: prevContent });
+            toast.success("Contenido anterior restaurado");
+          },
+        },
+      });
     } catch (e: any) {
       toast.error(e.message || "Error redactando capítulo");
     } finally {
@@ -204,7 +212,9 @@ export function ManuscriptTab() {
 
   const inlineEdit = async (action: "expand" | "rewrite" | "bestseller" | "shorten") => {
     if (!active || !selection.text) return;
-    saveSnapshot(active.id, `IA · ${action}`);
+    const prevContent = active.content;
+    const activeId = active.id;
+    saveSnapshot(activeId, `IA · ${action}`);
     setBusy("inline");
     try {
       const { text } = await inlineFn({
@@ -212,9 +222,14 @@ export function ManuscriptTab() {
       });
       const v = active.content;
       const next = v.slice(0, selection.start) + text + v.slice(selection.end);
-      updateChapter(active.id, { content: next });
+      updateChapter(activeId, { content: next });
       setSelection({ text: "", start: 0, end: 0 });
-      toast.success("Edición aplicada");
+      toast.success("Edición aplicada", {
+        action: {
+          label: "Deshacer",
+          onClick: () => updateChapter(activeId, { content: prevContent }),
+        },
+      });
     } catch (e: any) {
       toast.error(e.message || "Error en edición IA");
     } finally {
@@ -383,7 +398,15 @@ export function ManuscriptTab() {
             addChapter();
             toast.success("Capítulo añadido");
           }}
-          onMove={moveChapter}
+          onMove={(id, d) => {
+            moveChapter(id, d);
+            toast("Capítulo movido", {
+              action: {
+                label: "Deshacer",
+                onClick: () => moveChapter(id, (-d) as -1 | 1),
+              },
+            });
+          }}
           onUpdate={updateChapter}
           onDelete={(id) => setConfirmDelete(id)}
         />
@@ -452,8 +475,23 @@ export function ManuscriptTab() {
             <AlertDialogAction
               onClick={() => {
                 if (confirmDelete) {
+                  const ch = chapters.find((c) => c.id === confirmDelete);
+                  const idx = chapters.findIndex((c) => c.id === confirmDelete);
                   deleteChapter(confirmDelete);
-                  toast.success("Capítulo eliminado");
+                  if (ch) {
+                    toast.success("Capítulo eliminado", {
+                      action: {
+                        label: "Deshacer",
+                        onClick: () => {
+                          const cur = useBookStore.getState().chapters;
+                          const next = [...cur];
+                          next.splice(Math.min(idx, next.length), 0, ch);
+                          setChapters(next);
+                          toast.success("Capítulo restaurado");
+                        },
+                      },
+                    });
+                  }
                 }
                 setConfirmDelete(null);
               }}
