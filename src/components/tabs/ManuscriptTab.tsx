@@ -391,7 +391,15 @@ export function ManuscriptTab() {
             addChapter();
             toast.success("Capítulo añadido");
           }}
-          onMove={moveChapter}
+          onMove={(id, d) => {
+            moveChapter(id, d);
+            toast("Capítulo movido", {
+              action: {
+                label: "Deshacer",
+                onClick: () => moveChapter(id, (-d) as -1 | 1),
+              },
+            });
+          }}
           onUpdate={updateChapter}
           onDelete={(id) => setConfirmDelete(id)}
         />
