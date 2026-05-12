@@ -452,8 +452,23 @@ export function ManuscriptTab() {
             <AlertDialogAction
               onClick={() => {
                 if (confirmDelete) {
+                  const ch = chapters.find((c) => c.id === confirmDelete);
+                  const idx = chapters.findIndex((c) => c.id === confirmDelete);
                   deleteChapter(confirmDelete);
-                  toast.success("Capítulo eliminado");
+                  if (ch) {
+                    toast.success("Capítulo eliminado", {
+                      action: {
+                        label: "Deshacer",
+                        onClick: () => {
+                          const cur = useBookStore.getState().chapters;
+                          const next = [...cur];
+                          next.splice(Math.min(idx, next.length), 0, ch);
+                          setChapters(next);
+                          toast.success("Capítulo restaurado");
+                        },
+                      },
+                    });
+                  }
                 }
                 setConfirmDelete(null);
               }}
