@@ -18,6 +18,10 @@ function Studio() {
   const [tab, setTab] = useState("dna");
   const [focus, setFocus] = useState(false);
 
+  useEffect(() => {
+    maybeSeedDemo();
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       {!focus && <Header focusMode={focus} setFocusMode={setFocus} />}
