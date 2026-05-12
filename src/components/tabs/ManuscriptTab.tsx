@@ -66,6 +66,7 @@ export function ManuscriptTab() {
     deleteChapter,
     moveChapter,
     updateChapter,
+    replaceChapterContent,
     activeChapterId,
     setActiveChapterId,
     saveSnapshot,
@@ -149,7 +150,6 @@ export function ManuscriptTab() {
   const writeChapter = async (id: string) => {
     const ch = chapters.find((c) => c.id === id);
     if (!ch) return;
-    const prevContent = ch.content;
     saveSnapshot(id, "Pre-redacción IA");
     setBusy("write-" + id);
     try {
@@ -161,22 +161,14 @@ export function ManuscriptTab() {
           bible: storyBible,
         },
       });
-      updateChapter(id, { content: text });
+      replaceChapterContent(id, text, `Redacción IA · ${ch.title}`);
       setStoryBible(
         (storyBible ? storyBible + "\n\n" : "") +
           `[${ch.title}]\n` +
           text.split(/\s+/).slice(0, 60).join(" ") +
           "…",
       );
-      toast.success("Capítulo redactado", {
-        action: {
-          label: "Deshacer",
-          onClick: () => {
-            updateChapter(id, { content: prevContent });
-            toast.success("Contenido anterior restaurado");
-          },
-        },
-      });
+      toast.success("Capítulo redactado · Ctrl+Z para deshacer");
     } catch (e: any) {
       toast.error(e.message || "Error redactando capítulo");
     } finally {
@@ -212,7 +204,6 @@ export function ManuscriptTab() {
 
   const inlineEdit = async (action: "expand" | "rewrite" | "bestseller" | "shorten") => {
     if (!active || !selection.text) return;
-    const prevContent = active.content;
     const activeId = active.id;
     saveSnapshot(activeId, `IA · ${action}`);
     setBusy("inline");
@@ -222,14 +213,9 @@ export function ManuscriptTab() {
       });
       const v = active.content;
       const next = v.slice(0, selection.start) + text + v.slice(selection.end);
-      updateChapter(activeId, { content: next });
+      replaceChapterContent(activeId, next, `IA inline · ${action}`);
       setSelection({ text: "", start: 0, end: 0 });
-      toast.success("Edición aplicada", {
-        action: {
-          label: "Deshacer",
-          onClick: () => updateChapter(activeId, { content: prevContent }),
-        },
-      });
+      toast.success("Edición aplicada · Ctrl+Z para deshacer");
     } catch (e: any) {
       toast.error(e.message || "Error en edición IA");
     } finally {
