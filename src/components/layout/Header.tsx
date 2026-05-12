@@ -1,9 +1,10 @@
-import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles } from "lucide-react";
+import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useBookStore, wordCount } from "@/lib/store";
 import { toast } from "sonner";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { ExportModal } from "@/components/ExportModal";
 
 type Props = {
   focusMode: boolean;
