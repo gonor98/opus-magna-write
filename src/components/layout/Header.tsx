@@ -96,6 +96,13 @@ export function Header({ focusMode, setFocusMode }: Props) {
             <Download className="mr-1.5 h-4 w-4" /> Backup
           </Button>
           <Button
+            size="sm"
+            className="primary-gradient text-primary-foreground shadow-soft transition hover:scale-[1.02]"
+            onClick={() => setExportOpen(true)}
+          >
+            <FileDown className="mr-1.5 h-4 w-4" /> Exportar
+          </Button>
+          <Button
             variant="outline"
             size="sm"
             onClick={() => {
@@ -109,6 +116,7 @@ export function Header({ focusMode, setFocusMode }: Props) {
           </Button>
         </div>
       </div>
+      <ExportModal open={exportOpen} onOpenChange={setExportOpen} />
     </header>
   );
 }
