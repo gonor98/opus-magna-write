@@ -1,4 +1,4 @@
-import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles, FileDown } from "lucide-react";
+import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles, FileDown, Undo2, Redo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useBookStore, wordCount } from "@/lib/store";
@@ -15,6 +15,10 @@ export function Header({ focusMode, setFocusMode }: Props) {
   const chapters = useBookStore((s) => s.chapters);
   const bookContext = useBookStore((s) => s.bookContext);
   const importProject = useBookStore((s) => s.importProject);
+  const past = useBookStore((s) => s._past);
+  const future = useBookStore((s) => s._future);
+  const undo = useBookStore((s) => s.undo);
+  const redo = useBookStore((s) => s.redo);
   const fileRef = useRef<HTMLInputElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
 
@@ -89,6 +93,33 @@ export function Header({ focusMode, setFocusMode }: Props) {
 
         <div className="flex items-center gap-2">
           <input ref={fileRef} type="file" accept=".json,.opus" hidden onChange={handleImport} />
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={past.length === 0}
+            onClick={() => {
+              const label = undo();
+              if (label) toast.success(`↶ Deshecho: ${label}`);
+            }}
+            title="Deshacer (Ctrl+Z)"
+            className="h-8 w-8"
+          >
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={future.length === 0}
+            onClick={() => {
+              const label = redo();
+              if (label) toast.success(`↻ Rehecho: ${label}`);
+            }}
+            title="Rehacer (Ctrl+Shift+Z)"
+            className="h-8 w-8"
+          >
+            <Redo2 className="h-4 w-4" />
+          </Button>
+          <div className="mx-1 hidden h-5 w-px bg-border md:block" />
           <Button variant="ghost" size="sm" onClick={() => fileRef.current?.click()}>
             <Upload className="mr-1.5 h-4 w-4" /> Importar
           </Button>
