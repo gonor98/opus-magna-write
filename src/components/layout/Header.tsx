@@ -16,6 +16,7 @@ export function Header({ focusMode, setFocusMode }: Props) {
   const bookContext = useBookStore((s) => s.bookContext);
   const importProject = useBookStore((s) => s.importProject);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const wc = wordCount(chapters);
 
