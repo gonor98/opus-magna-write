@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { maybeSeedDemo } from "@/lib/demo";
+import { useBookStore } from "@/lib/store";
+import { toast } from "sonner";
 import { Header } from "@/components/layout/Header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AuthorDNATab } from "@/components/tabs/AuthorDNATab";
@@ -20,6 +22,37 @@ function Studio() {
 
   useEffect(() => {
     maybeSeedDemo();
+  }, []);
+
+  // Global undo/redo shortcuts (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.ctrlKey || e.metaKey;
+      if (!meta || e.key.toLowerCase() !== "z") return;
+      const target = e.target as HTMLElement | null;
+      // Don't hijack within text inputs/editors — let native undo work
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      e.preventDefault();
+      const store = useBookStore.getState();
+      if (e.shiftKey) {
+        const label = store.redo();
+        if (label) toast.success(`↻ Rehecho: ${label}`);
+        else toast("Nada que rehacer");
+      } else {
+        const label = store.undo();
+        if (label) toast.success(`↶ Deshecho: ${label}`);
+        else toast("Nada que deshacer");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   return (
