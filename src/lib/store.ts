@@ -56,6 +56,15 @@ export type DesignConfig = {
 
 export type LaunchKit = { emails: string; social: string; trailer: string };
 
+type HistoryEntry = {
+  label: string;
+  chapters: Chapter[];
+  bookContext: BookContext;
+  frontBackMatter: FrontBackMatter;
+  publishingForm: PublishingForm;
+  bookCover: string | null;
+};
+
 type State = {
   authorDNA: AuthorDNA;
   storyBible: string;
@@ -67,6 +76,10 @@ type State = {
   designConfig: DesignConfig;
   launchKit: LaunchKit;
   bookCover: string | null;
+
+  // Undo/redo internals (not persisted)
+  _past: HistoryEntry[];
+  _future: HistoryEntry[];
 
   setAuthorDNA: (p: Partial<AuthorDNA>) => void;
   setStoryBible: (s: string) => void;
@@ -82,8 +95,17 @@ type State = {
   deleteChapter: (id: string) => void;
   moveChapter: (id: string, direction: -1 | 1) => void;
   updateChapter: (id: string, patch: Partial<Chapter>) => void;
+  /** Replace chapter content with undo/redo support — use for AI overwrites */
+  replaceChapterContent: (id: string, content: string, label?: string) => void;
   saveSnapshot: (id: string, type: string) => void;
   setActiveChapterId: (id: string | null) => void;
+
+  pushHistory: (label: string) => void;
+  undo: () => string | null;
+  redo: () => string | null;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  clearHistory: () => void;
 
   importProject: (data: Partial<State>) => void;
   resetAll: () => void;
@@ -95,6 +117,17 @@ const uuid = () =>
     const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
+
+const HISTORY_LIMIT = 50;
+
+const snapshotState = (s: State): HistoryEntry => ({
+  label: "",
+  chapters: s.chapters.map((c) => ({ ...c, images: [...c.images], snapshots: [...c.snapshots] })),
+  bookContext: { ...s.bookContext },
+  frontBackMatter: { ...s.frontBackMatter },
+  publishingForm: { ...s.publishingForm },
+  bookCover: s.bookCover,
+});
 
 const initial = {
   authorDNA: { bio: "", mission: "", voiceSamples: "", extractedPersona: "", photoDataUrl: null },
@@ -115,6 +148,8 @@ const initial = {
   designConfig: { font: "Lora" as const, size: "10.5pt", lineHeight: "1.55", chapterTheme: "classic" as const },
   launchKit: { emails: "", social: "", trailer: "" },
   bookCover: null as string | null,
+  _past: [] as HistoryEntry[],
+  _future: [] as HistoryEntry[],
 };
 
 export const useBookStore = create<State>()(
@@ -131,7 +166,10 @@ export const useBookStore = create<State>()(
       setLaunchKit: (p) => set((s) => ({ launchKit: { ...s.launchKit, ...p } })),
       setBookCover: (c) => set({ bookCover: c }),
 
-      setChapters: (chapters) => set({ chapters }),
+      setChapters: (chapters) => {
+        get().pushHistory("Reordenar/restaurar capítulos");
+        set({ chapters });
+      },
       addChapter: () =>
         set((s) => ({
           chapters: [
@@ -146,12 +184,15 @@ export const useBookStore = create<State>()(
             },
           ],
         })),
-      deleteChapter: (id) =>
+      deleteChapter: (id) => {
+        get().pushHistory("Eliminar capítulo");
         set((s) => ({
           chapters: s.chapters.filter((c) => c.id !== id),
           activeChapterId: s.activeChapterId === id ? null : s.activeChapterId,
-        })),
-      moveChapter: (id, direction) =>
+        }));
+      },
+      moveChapter: (id, direction) => {
+        get().pushHistory("Mover capítulo");
         set((s) => {
           const idx = s.chapters.findIndex((c) => c.id === id);
           if (idx < 0) return s;
@@ -161,11 +202,18 @@ export const useBookStore = create<State>()(
           const [item] = arr.splice(idx, 1);
           arr.splice(newIdx, 0, item);
           return { chapters: arr };
-        }),
+        });
+      },
       updateChapter: (id, patch) =>
         set((s) => ({
           chapters: s.chapters.map((c) => (c.id === id ? { ...c, ...patch } : c)),
         })),
+      replaceChapterContent: (id, content, label = "Sobrescritura IA") => {
+        get().pushHistory(label);
+        set((s) => ({
+          chapters: s.chapters.map((c) => (c.id === id ? { ...c, content } : c)),
+        }));
+      },
       saveSnapshot: (id, type) =>
         set((s) => {
           const chapters = s.chapters.map((c) => {
@@ -184,12 +232,57 @@ export const useBookStore = create<State>()(
         }),
       setActiveChapterId: (id) => set({ activeChapterId: id }),
 
-      importProject: (data) => set({ ...get(), ...data }),
-      resetAll: () => set(initial),
+      pushHistory: (label) =>
+        set((s) => ({
+          _past: [...s._past, { ...snapshotState(s), label }].slice(-HISTORY_LIMIT),
+          _future: [],
+        })),
+      undo: () => {
+        const s = get();
+        const last = s._past[s._past.length - 1];
+        if (!last) return null;
+        const present: HistoryEntry = { ...snapshotState(s), label: last.label };
+        set({
+          _past: s._past.slice(0, -1),
+          _future: [present, ...s._future].slice(0, HISTORY_LIMIT),
+          chapters: last.chapters,
+          bookContext: last.bookContext,
+          frontBackMatter: last.frontBackMatter,
+          publishingForm: last.publishingForm,
+          bookCover: last.bookCover,
+        });
+        return last.label;
+      },
+      redo: () => {
+        const s = get();
+        const next = s._future[0];
+        if (!next) return null;
+        const present: HistoryEntry = { ...snapshotState(s), label: next.label };
+        set({
+          _future: s._future.slice(1),
+          _past: [...s._past, present].slice(-HISTORY_LIMIT),
+          chapters: next.chapters,
+          bookContext: next.bookContext,
+          frontBackMatter: next.frontBackMatter,
+          publishingForm: next.publishingForm,
+          bookCover: next.bookCover,
+        });
+        return next.label;
+      },
+      canUndo: () => get()._past.length > 0,
+      canRedo: () => get()._future.length > 0,
+      clearHistory: () => set({ _past: [], _future: [] }),
+
+      importProject: (data) => set({ ...get(), ...data, _past: [], _future: [] }),
+      resetAll: () => set({ ...initial }),
     }),
     {
       name: "opus-magna-studio-v1",
-      // Don't persist images bytes inside chapters? They can be heavy but persisting is fine for now.
+      partialize: (s) => {
+        // Exclude undo/redo stacks from persistence (large + transient)
+        const { _past, _future, ...rest } = s as any;
+        return rest;
+      },
     },
   ),
 );
