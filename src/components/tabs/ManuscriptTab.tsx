@@ -149,6 +149,7 @@ export function ManuscriptTab() {
   const writeChapter = async (id: string) => {
     const ch = chapters.find((c) => c.id === id);
     if (!ch) return;
+    const prevContent = ch.content;
     saveSnapshot(id, "Pre-redacción IA");
     setBusy("write-" + id);
     try {
@@ -161,14 +162,21 @@ export function ManuscriptTab() {
         },
       });
       updateChapter(id, { content: text });
-      // append to story bible (light)
       setStoryBible(
         (storyBible ? storyBible + "\n\n" : "") +
           `[${ch.title}]\n` +
           text.split(/\s+/).slice(0, 60).join(" ") +
           "…",
       );
-      toast.success("Capítulo redactado");
+      toast.success("Capítulo redactado", {
+        action: {
+          label: "Deshacer",
+          onClick: () => {
+            updateChapter(id, { content: prevContent });
+            toast.success("Contenido anterior restaurado");
+          },
+        },
+      });
     } catch (e: any) {
       toast.error(e.message || "Error redactando capítulo");
     } finally {
