@@ -260,24 +260,30 @@ export function buildPreview(p: ExportPayload, options?: ExportOptions): ExportP
 class ProgressTracker {
   steps: ProgressStep[];
   cb?: OnProgress;
-  constructor(steps: { id: string; label: string }[], cb?: OnProgress) {
+  signal?: AbortSignal;
+  currentId: string | null = null;
+  constructor(steps: { id: string; label: string }[], cb?: OnProgress, signal?: AbortSignal) {
     this.steps = steps.map((s) => ({ ...s, status: "pending" as const }));
     this.cb = cb;
+    this.signal = signal;
     this.emit();
   }
   emit() {
     this.cb?.(this.steps.map((s) => ({ ...s })));
   }
   async start(id: string, detail?: string) {
+    checkAbort(this.signal);
+    this.currentId = id;
     const s = this.steps.find((x) => x.id === id);
     if (s) {
       s.status = "active";
       s.detail = detail;
     }
     this.emit();
-    await sleep(40); // let UI paint
+    await sleep(40);
   }
   update(id: string, detail: string) {
+    checkAbort(this.signal);
     const s = this.steps.find((x) => x.id === id);
     if (s) s.detail = detail;
     this.emit();
@@ -297,6 +303,17 @@ class ProgressTracker {
       s.detail = detail;
     }
     this.emit();
+  }
+  /** Wrap export body in this to translate raw errors into ExportStepError */
+  async wrap<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e: any) {
+      if (e?.name === "AbortError") throw e;
+      const id = this.currentId || "unknown";
+      this.error(id, e?.message || String(e));
+      throw new ExportStepError(id, e?.message || "Error desconocido");
+    }
   }
 }
 
