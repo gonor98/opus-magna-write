@@ -207,18 +207,20 @@ export type ExportPreview = {
   firstPages: { title: string; excerpt: string }[];
 };
 
-export function buildPreview(p: ExportPayload): ExportPreview {
+export function buildPreview(p: ExportPayload, options?: ExportOptions): ExportPreview {
   const toc: PreviewSection[] = [];
   const fm = p.frontBackMatter;
+  const chapters = sliceChapters(p.chapters, options?.chapterRange);
+  const offset = options?.chapterRange ? Math.max(0, options.chapterRange.from - 1) : 0;
 
   if (fm.dedication) toc.push({ id: "dedication", label: "Dedicatoria", kind: "front" });
   if (fm.prologue) toc.push({ id: "prologue", label: "Prólogo", kind: "front" });
 
-  p.chapters.forEach((ch, i) => {
+  chapters.forEach((ch, i) => {
     const headings = extractHeadings(ch.content || "");
     toc.push({
       id: `chapter-${i}`,
-      label: `${i + 1}. ${ch.title}`,
+      label: `${offset + i + 1}. ${ch.title}`,
       kind: "chapter",
       excerpt: mdToPlain(ch.content || ch.description).slice(0, 180),
       subItems: headings.slice(0, 8).map((h) => ({ id: h.id, text: h.text, level: h.level })),
@@ -230,12 +232,12 @@ export function buildPreview(p: ExportPayload): ExportPreview {
   const bio = p.publishingForm.shortBio || p.authorDNA.bio;
   if (bio) toc.push({ id: "about", label: "Sobre el autor", kind: "back" });
 
-  const firstPages = p.chapters.slice(0, 3).map((ch) => ({
+  const firstPages = chapters.slice(0, 3).map((ch) => ({
     title: ch.title,
     excerpt: mdToPlain(ch.content || ch.description).slice(0, 360),
   }));
 
-  const totalWords = p.chapters.reduce(
+  const totalWords = chapters.reduce(
     (acc, c) => (c.content ? acc + c.content.trim().split(/\s+/).filter(Boolean).length : acc),
     0,
   );
