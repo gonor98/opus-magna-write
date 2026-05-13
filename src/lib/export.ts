@@ -716,8 +716,10 @@ nav .group-title{margin-top:1em;font-weight:bold;text-transform:uppercase;letter
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${slugify(p.bookContext.title)}.epub`;
+  const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
+  a.download = `${slugify(p.bookContext.title)}${suffix}.epub`;
   a.click();
   URL.revokeObjectURL(url);
   tracker.done("package", "Descarga iniciada");
+  });
 }
