@@ -26,6 +26,39 @@ export type ProgressStep = {
 
 export type OnProgress = (steps: ProgressStep[]) => void;
 
+export type ExportOptions = {
+  /** 1-indexed inclusive chapter range. Omit to export all chapters. */
+  chapterRange?: { from: number; to: number };
+  signal?: AbortSignal;
+};
+
+export class ExportStepError extends Error {
+  stepId: string;
+  constructor(stepId: string, message: string) {
+    super(message);
+    this.stepId = stepId;
+    this.name = "ExportStepError";
+  }
+}
+
+export class ExportAbortError extends Error {
+  constructor() {
+    super("Exportación cancelada");
+    this.name = "AbortError";
+  }
+}
+
+const checkAbort = (signal?: AbortSignal) => {
+  if (signal?.aborted) throw new ExportAbortError();
+};
+
+const sliceChapters = (chs: Chapter[], range?: ExportOptions["chapterRange"]) => {
+  if (!range) return chs;
+  const from = Math.max(1, Math.min(chs.length, range.from)) - 1;
+  const to = Math.max(from + 1, Math.min(chs.length, range.to));
+  return chs.slice(from, to);
+};
+
 const escapeHtml = (s: string) =>
   s
     .replace(/&/g, "&amp;")
@@ -174,18 +207,20 @@ export type ExportPreview = {
   firstPages: { title: string; excerpt: string }[];
 };
 
-export function buildPreview(p: ExportPayload): ExportPreview {
+export function buildPreview(p: ExportPayload, options?: ExportOptions): ExportPreview {
   const toc: PreviewSection[] = [];
   const fm = p.frontBackMatter;
+  const chapters = sliceChapters(p.chapters, options?.chapterRange);
+  const offset = options?.chapterRange ? Math.max(0, options.chapterRange.from - 1) : 0;
 
   if (fm.dedication) toc.push({ id: "dedication", label: "Dedicatoria", kind: "front" });
   if (fm.prologue) toc.push({ id: "prologue", label: "Prólogo", kind: "front" });
 
-  p.chapters.forEach((ch, i) => {
+  chapters.forEach((ch, i) => {
     const headings = extractHeadings(ch.content || "");
     toc.push({
       id: `chapter-${i}`,
-      label: `${i + 1}. ${ch.title}`,
+      label: `${offset + i + 1}. ${ch.title}`,
       kind: "chapter",
       excerpt: mdToPlain(ch.content || ch.description).slice(0, 180),
       subItems: headings.slice(0, 8).map((h) => ({ id: h.id, text: h.text, level: h.level })),
@@ -197,12 +232,12 @@ export function buildPreview(p: ExportPayload): ExportPreview {
   const bio = p.publishingForm.shortBio || p.authorDNA.bio;
   if (bio) toc.push({ id: "about", label: "Sobre el autor", kind: "back" });
 
-  const firstPages = p.chapters.slice(0, 3).map((ch) => ({
+  const firstPages = chapters.slice(0, 3).map((ch) => ({
     title: ch.title,
     excerpt: mdToPlain(ch.content || ch.description).slice(0, 360),
   }));
 
-  const totalWords = p.chapters.reduce(
+  const totalWords = chapters.reduce(
     (acc, c) => (c.content ? acc + c.content.trim().split(/\s+/).filter(Boolean).length : acc),
     0,
   );
@@ -225,24 +260,30 @@ export function buildPreview(p: ExportPayload): ExportPreview {
 class ProgressTracker {
   steps: ProgressStep[];
   cb?: OnProgress;
-  constructor(steps: { id: string; label: string }[], cb?: OnProgress) {
+  signal?: AbortSignal;
+  currentId: string | null = null;
+  constructor(steps: { id: string; label: string }[], cb?: OnProgress, signal?: AbortSignal) {
     this.steps = steps.map((s) => ({ ...s, status: "pending" as const }));
     this.cb = cb;
+    this.signal = signal;
     this.emit();
   }
   emit() {
     this.cb?.(this.steps.map((s) => ({ ...s })));
   }
   async start(id: string, detail?: string) {
+    checkAbort(this.signal);
+    this.currentId = id;
     const s = this.steps.find((x) => x.id === id);
     if (s) {
       s.status = "active";
       s.detail = detail;
     }
     this.emit();
-    await sleep(40); // let UI paint
+    await sleep(40);
   }
   update(id: string, detail: string) {
+    checkAbort(this.signal);
     const s = this.steps.find((x) => x.id === id);
     if (s) s.detail = detail;
     this.emit();
@@ -263,11 +304,22 @@ class ProgressTracker {
     }
     this.emit();
   }
+  /** Wrap export body in this to translate raw errors into ExportStepError */
+  async wrap<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e: any) {
+      if (e?.name === "AbortError") throw e;
+      const id = this.currentId || "unknown";
+      this.error(id, e?.message || String(e));
+      throw new ExportStepError(id, e?.message || "Error desconocido");
+    }
+  }
 }
 
 /* -------------------- PDF -------------------- */
 
-export async function exportPDF(p: ExportPayload, onProgress?: OnProgress) {
+export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, options?: ExportOptions) {
   const tracker = new ProgressTracker(
     [
       { id: "init", label: "Inicializando documento A5" },
@@ -279,7 +331,13 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress) {
       { id: "save", label: "Guardando archivo" },
     ],
     onProgress,
+    options?.signal,
   );
+
+  const chapters = sliceChapters(p.chapters, options?.chapterRange);
+  const offset = options?.chapterRange ? Math.max(0, options.chapterRange.from - 1) : 0;
+
+  return tracker.wrap(async () => {
 
   await tracker.start("init");
   const doc = new jsPDF({ unit: "pt", format: "a5" });
@@ -358,14 +416,14 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress) {
   if (p.frontBackMatter.prologue) writeBlock("Prólogo", p.frontBackMatter.prologue);
   tracker.done("front");
 
-  await tracker.start("chapters", `0/${p.chapters.length}`);
-  for (let i = 0; i < p.chapters.length; i++) {
-    const ch = p.chapters[i];
-    writeBlock(`${i + 1}. ${ch.title}`, ch.content || ch.description);
-    tracker.update("chapters", `${i + 1}/${p.chapters.length} · ${ch.title}`);
-    if (i % 2 === 0) await sleep(0); // yield
+  await tracker.start("chapters", `0/${chapters.length}`);
+  for (let i = 0; i < chapters.length; i++) {
+    const ch = chapters[i];
+    writeBlock(`${offset + i + 1}. ${ch.title}`, ch.content || ch.description);
+    tracker.update("chapters", `${i + 1}/${chapters.length} · ${ch.title}`);
+    if (i % 2 === 0) await sleep(0);
   }
-  tracker.done("chapters", `${p.chapters.length} capítulos`);
+  tracker.done("chapters", `${chapters.length} capítulos`);
 
   await tracker.start("back");
   if (p.frontBackMatter.epilogue) writeBlock("Epílogo", p.frontBackMatter.epilogue);
@@ -375,13 +433,15 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress) {
   tracker.done("back");
 
   await tracker.start("save");
-  doc.save(`${slugify(p.bookContext.title)}.pdf`);
+  const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
+  doc.save(`${slugify(p.bookContext.title)}${suffix}.pdf`);
   tracker.done("save", "Descarga iniciada");
+  });
 }
 
 /* -------------------- EPUB -------------------- */
 
-export async function exportEPUB(p: ExportPayload, onProgress?: OnProgress) {
+export async function exportEPUB(p: ExportPayload, onProgress?: OnProgress, options?: ExportOptions) {
   const tracker = new ProgressTracker(
     [
       { id: "init", label: "Preparando contenedor EPUB 3.0" },
@@ -393,7 +453,13 @@ export async function exportEPUB(p: ExportPayload, onProgress?: OnProgress) {
       { id: "package", label: "Empaquetando archivo .epub" },
     ],
     onProgress,
+    options?.signal,
   );
+
+  const chapterSlice = sliceChapters(p.chapters, options?.chapterRange);
+  const offset = options?.chapterRange ? Math.max(0, options.chapterRange.from - 1) : 0;
+
+  return tracker.wrap(async () => {
 
   await tracker.start("init");
   const zip = new JSZip();
@@ -496,8 +562,8 @@ nav .group-title{margin-top:1em;font-weight:bold;text-transform:uppercase;letter
     });
   tracker.done("front");
 
-  // Chapter images
-  p.chapters.forEach((ch, ci) => {
+  // Chapter images (only for sliced range)
+  chapterSlice.forEach((ch, ci) => {
     (ch.images || []).forEach((url, ii) => {
       try {
         const { bytes, mime } = dataUrlToBytes(url);
@@ -511,9 +577,9 @@ nav .group-title{margin-top:1em;font-weight:bold;text-transform:uppercase;letter
     });
   });
 
-  await tracker.start("chapters", `0/${p.chapters.length}`);
-  for (let i = 0; i < p.chapters.length; i++) {
-    const ch = p.chapters[i];
+  await tracker.start("chapters", `0/${chapterSlice.length}`);
+  for (let i = 0; i < chapterSlice.length; i++) {
+    const ch = chapterSlice[i];
     const headings = extractHeadings(ch.content || "");
     const parts = (ch.content || "").split(/\[ILUSTRACION:(\d+)\]/);
     const rebuilt = parts
@@ -535,13 +601,13 @@ nav .group-title{margin-top:1em;font-weight:bold;text-transform:uppercase;letter
       .join("\n");
     addXhtml(`chapter-${i}`, `chapter-${i}.xhtml`, `<h1 id="top">${escapeHtml(ch.title)}</h1>${rebuilt}`, {
       kind: "chapter",
-      label: `${i + 1}. ${ch.title}`,
+      label: `${offset + i + 1}. ${ch.title}`,
       headings,
     });
-    tracker.update("chapters", `${i + 1}/${p.chapters.length} · ${ch.title}`);
+    tracker.update("chapters", `${i + 1}/${chapterSlice.length} · ${ch.title}`);
     if (i % 2 === 0) await sleep(0);
   }
-  tracker.done("chapters", `${p.chapters.length} capítulos`);
+  tracker.done("chapters", `${chapterSlice.length} capítulos`);
 
   await tracker.start("back");
   if (fm.epilogue)
@@ -650,8 +716,10 @@ nav .group-title{margin-top:1em;font-weight:bold;text-transform:uppercase;letter
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${slugify(p.bookContext.title)}.epub`;
+  const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
+  a.download = `${slugify(p.bookContext.title)}${suffix}.epub`;
   a.click();
   URL.revokeObjectURL(url);
   tracker.done("package", "Descarga iniciada");
+  });
 }
