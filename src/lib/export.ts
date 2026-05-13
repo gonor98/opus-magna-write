@@ -26,6 +26,39 @@ export type ProgressStep = {
 
 export type OnProgress = (steps: ProgressStep[]) => void;
 
+export type ExportOptions = {
+  /** 1-indexed inclusive chapter range. Omit to export all chapters. */
+  chapterRange?: { from: number; to: number };
+  signal?: AbortSignal;
+};
+
+export class ExportStepError extends Error {
+  stepId: string;
+  constructor(stepId: string, message: string) {
+    super(message);
+    this.stepId = stepId;
+    this.name = "ExportStepError";
+  }
+}
+
+export class ExportAbortError extends Error {
+  constructor() {
+    super("Exportación cancelada");
+    this.name = "AbortError";
+  }
+}
+
+const checkAbort = (signal?: AbortSignal) => {
+  if (signal?.aborted) throw new ExportAbortError();
+};
+
+const sliceChapters = (chs: Chapter[], range?: ExportOptions["chapterRange"]) => {
+  if (!range) return chs;
+  const from = Math.max(1, Math.min(chs.length, range.from)) - 1;
+  const to = Math.max(from + 1, Math.min(chs.length, range.to));
+  return chs.slice(from, to);
+};
+
 const escapeHtml = (s: string) =>
   s
     .replace(/&/g, "&amp;")
