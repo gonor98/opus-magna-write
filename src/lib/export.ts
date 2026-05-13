@@ -319,7 +319,7 @@ class ProgressTracker {
 
 /* -------------------- PDF -------------------- */
 
-export async function exportPDF(p: ExportPayload, onProgress?: OnProgress) {
+export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, options?: ExportOptions) {
   const tracker = new ProgressTracker(
     [
       { id: "init", label: "Inicializando documento A5" },
@@ -331,7 +331,13 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress) {
       { id: "save", label: "Guardando archivo" },
     ],
     onProgress,
+    options?.signal,
   );
+
+  const chapters = sliceChapters(p.chapters, options?.chapterRange);
+  const offset = options?.chapterRange ? Math.max(0, options.chapterRange.from - 1) : 0;
+
+  return tracker.wrap(async () => {
 
   await tracker.start("init");
   const doc = new jsPDF({ unit: "pt", format: "a5" });
