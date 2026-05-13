@@ -562,8 +562,8 @@ nav .group-title{margin-top:1em;font-weight:bold;text-transform:uppercase;letter
     });
   tracker.done("front");
 
-  // Chapter images
-  p.chapters.forEach((ch, ci) => {
+  // Chapter images (only for sliced range)
+  chapterSlice.forEach((ch, ci) => {
     (ch.images || []).forEach((url, ii) => {
       try {
         const { bytes, mime } = dataUrlToBytes(url);
@@ -577,9 +577,9 @@ nav .group-title{margin-top:1em;font-weight:bold;text-transform:uppercase;letter
     });
   });
 
-  await tracker.start("chapters", `0/${p.chapters.length}`);
-  for (let i = 0; i < p.chapters.length; i++) {
-    const ch = p.chapters[i];
+  await tracker.start("chapters", `0/${chapterSlice.length}`);
+  for (let i = 0; i < chapterSlice.length; i++) {
+    const ch = chapterSlice[i];
     const headings = extractHeadings(ch.content || "");
     const parts = (ch.content || "").split(/\[ILUSTRACION:(\d+)\]/);
     const rebuilt = parts
@@ -601,13 +601,13 @@ nav .group-title{margin-top:1em;font-weight:bold;text-transform:uppercase;letter
       .join("\n");
     addXhtml(`chapter-${i}`, `chapter-${i}.xhtml`, `<h1 id="top">${escapeHtml(ch.title)}</h1>${rebuilt}`, {
       kind: "chapter",
-      label: `${i + 1}. ${ch.title}`,
+      label: `${offset + i + 1}. ${ch.title}`,
       headings,
     });
-    tracker.update("chapters", `${i + 1}/${p.chapters.length} · ${ch.title}`);
+    tracker.update("chapters", `${i + 1}/${chapterSlice.length} · ${ch.title}`);
     if (i % 2 === 0) await sleep(0);
   }
-  tracker.done("chapters", `${p.chapters.length} capítulos`);
+  tracker.done("chapters", `${chapterSlice.length} capítulos`);
 
   await tracker.start("back");
   if (fm.epilogue)
