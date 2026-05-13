@@ -416,14 +416,14 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, optio
   if (p.frontBackMatter.prologue) writeBlock("Prólogo", p.frontBackMatter.prologue);
   tracker.done("front");
 
-  await tracker.start("chapters", `0/${p.chapters.length}`);
-  for (let i = 0; i < p.chapters.length; i++) {
-    const ch = p.chapters[i];
-    writeBlock(`${i + 1}. ${ch.title}`, ch.content || ch.description);
-    tracker.update("chapters", `${i + 1}/${p.chapters.length} · ${ch.title}`);
-    if (i % 2 === 0) await sleep(0); // yield
+  await tracker.start("chapters", `0/${chapters.length}`);
+  for (let i = 0; i < chapters.length; i++) {
+    const ch = chapters[i];
+    writeBlock(`${offset + i + 1}. ${ch.title}`, ch.content || ch.description);
+    tracker.update("chapters", `${i + 1}/${chapters.length} · ${ch.title}`);
+    if (i % 2 === 0) await sleep(0);
   }
-  tracker.done("chapters", `${p.chapters.length} capítulos`);
+  tracker.done("chapters", `${chapters.length} capítulos`);
 
   await tracker.start("back");
   if (p.frontBackMatter.epilogue) writeBlock("Epílogo", p.frontBackMatter.epilogue);
@@ -433,8 +433,10 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, optio
   tracker.done("back");
 
   await tracker.start("save");
-  doc.save(`${slugify(p.bookContext.title)}.pdf`);
+  const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
+  doc.save(`${slugify(p.bookContext.title)}${suffix}.pdf`);
   tracker.done("save", "Descarga iniciada");
+  });
 }
 
 /* -------------------- EPUB -------------------- */
