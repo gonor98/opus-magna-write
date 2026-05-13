@@ -441,7 +441,7 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, optio
 
 /* -------------------- EPUB -------------------- */
 
-export async function exportEPUB(p: ExportPayload, onProgress?: OnProgress) {
+export async function exportEPUB(p: ExportPayload, onProgress?: OnProgress, options?: ExportOptions) {
   const tracker = new ProgressTracker(
     [
       { id: "init", label: "Preparando contenedor EPUB 3.0" },
@@ -453,7 +453,13 @@ export async function exportEPUB(p: ExportPayload, onProgress?: OnProgress) {
       { id: "package", label: "Empaquetando archivo .epub" },
     ],
     onProgress,
+    options?.signal,
   );
+
+  const chapterSlice = sliceChapters(p.chapters, options?.chapterRange);
+  const offset = options?.chapterRange ? Math.max(0, options.chapterRange.from - 1) : 0;
+
+  return tracker.wrap(async () => {
 
   await tracker.start("init");
   const zip = new JSZip();
