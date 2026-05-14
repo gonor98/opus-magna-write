@@ -75,7 +75,7 @@ export function TiptapEditor({ markdown, onMarkdownChange, onInlineEdit, fontFam
     <div style={fontFamily ? { fontFamily } : undefined}>
       <BubbleMenu
         editor={editor}
-        tippyOptions={{ duration: 120, placement: "top" }}
+        options={{ placement: "top" }}
         className="flex items-center gap-1 rounded-xl border border-border bg-popover p-1 shadow-elevated"
       >
         <ToolbarBtn active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}>
