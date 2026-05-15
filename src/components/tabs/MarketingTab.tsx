@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore } from "@/lib/store";
-import { aiMarketing } from "@/lib/ai.functions";
+import { aiMarketing, aiACXScript, aiTranslate } from "@/lib/ai.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Mail, Megaphone, MonitorPlay, Copy } from "lucide-react";
+import { Mail, Megaphone, MonitorPlay, Copy, Mic, Languages, Headphones } from "lucide-react";
 import { Markdown } from "@/components/Markdown";
 import { toast } from "sonner";
 
