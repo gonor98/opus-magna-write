@@ -343,8 +343,27 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, optio
   const doc = new jsPDF({ unit: "pt", format: "a5" });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
-  const margin = 48;
-  const innerW = pageW - margin * 2;
+  // Print-ready gutter margins (asymmetric: inner edge wider for binding)
+  const GUTTER = 64;
+  const OUTER = 40;
+  const TOP = 56;
+  const BOTTOM = 64;
+  // Page numbering: tracked so we can stamp folios only on body matter
+  let chapterStartPage: number | null = null;
+  // Margins for the *current* page (recto = odd, verso = even).
+  // Recto (odd) pages: gutter on the LEFT (binding side).
+  // Verso (even) pages: gutter on the RIGHT.
+  const marginsForPage = (n: number) => {
+    const odd = n % 2 === 1;
+    return odd
+      ? { left: GUTTER, right: OUTER }
+      : { left: OUTER, right: GUTTER };
+  };
+  const currentMargins = () => marginsForPage(doc.getNumberOfPages());
+  const innerWForPage = () => {
+    const m = currentMargins();
+    return pageW - m.left - m.right;
+  };
   tracker.done("init");
 
   await tracker.start("cover");
@@ -364,22 +383,23 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, optio
   tracker.done("cover");
 
   await tracker.start("title");
+  const tm = currentMargins();
   doc.setFont("times", "bold");
   doc.setFontSize(28);
   doc.setTextColor(30, 30, 40);
   doc.text(p.bookContext.title || "Sin título", pageW / 2, pageH / 2 - 30, {
     align: "center",
-    maxWidth: innerW,
+    maxWidth: pageW - tm.left - tm.right,
   });
   doc.setFont("times", "italic");
   doc.setFontSize(14);
   doc.text(p.bookContext.subtitle || "", pageW / 2, pageH / 2, {
     align: "center",
-    maxWidth: innerW,
+    maxWidth: pageW - tm.left - tm.right,
   });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  doc.text(p.publishingForm.author || "Autor", pageW / 2, pageH - margin * 2, {
+  doc.text(p.publishingForm.author || "Autor", pageW / 2, pageH - BOTTOM * 2, {
     align: "center",
   });
   doc.addPage();
@@ -387,23 +407,27 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, optio
 
   const writeBlock = (title: string, body: string, opts?: { italic?: boolean }) => {
     if (!body && !title) return;
+    let m = currentMargins();
+    let innerW = pageW - m.left - m.right;
     doc.setFont("times", "bold");
     doc.setFontSize(20);
     doc.setTextColor(20, 20, 30);
-    doc.text(title, margin, margin + 10, { maxWidth: innerW });
+    doc.text(title, m.left, TOP + 10, { maxWidth: innerW });
     doc.setFont("times", opts?.italic ? "italic" : "normal");
     doc.setFontSize(11);
     doc.setTextColor(40, 40, 50);
-    let y = margin + 50;
+    let y = TOP + 50;
     const paragraphs = (body || "").split(/\n{2,}/);
     for (const para of paragraphs) {
       const lines = doc.splitTextToSize(mdToPlain(para), innerW) as string[];
       for (const ln of lines) {
-        if (y > pageH - margin) {
+        if (y > pageH - BOTTOM) {
           doc.addPage();
-          y = margin;
+          m = currentMargins();
+          innerW = pageW - m.left - m.right;
+          y = TOP;
         }
-        doc.text(ln, margin, y);
+        doc.text(ln, m.left, y);
         y += 16;
       }
       y += 8;
@@ -418,6 +442,7 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, optio
 
   await tracker.start("chapters", `0/${chapters.length}`);
   for (let i = 0; i < chapters.length; i++) {
+    if (i === 0) chapterStartPage = doc.getNumberOfPages();
     const ch = chapters[i];
     writeBlock(`${offset + i + 1}. ${ch.title}`, ch.content || ch.description);
     tracker.update("chapters", `${i + 1}/${chapters.length} · ${ch.title}`);
@@ -433,9 +458,25 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, optio
   tracker.done("back");
 
   await tracker.start("save");
+  // Stamp folios on body matter only (no numbers in front matter)
+  if (chapterStartPage) {
+    const total = doc.getNumberOfPages();
+    for (let pg = chapterStartPage; pg <= total; pg++) {
+      doc.setPage(pg);
+      const m = marginsForPage(pg);
+      const folio = pg - chapterStartPage + 1;
+      doc.setFont("times", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(120, 120, 130);
+      // Folio at outer edge (recto = right, verso = left)
+      const x = pg % 2 === 1 ? pageW - m.right : m.left;
+      const align: "left" | "right" = pg % 2 === 1 ? "right" : "left";
+      doc.text(String(folio), x, pageH - BOTTOM / 2, { align });
+    }
+  }
   const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
   doc.save(`${slugify(p.bookContext.title)}${suffix}.pdf`);
-  tracker.done("save", "Descarga iniciada");
+  tracker.done("save", "Descarga iniciada · márgenes gutter + folios");
   });
 }
 

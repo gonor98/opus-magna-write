@@ -1,24 +1,50 @@
 import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore } from "@/lib/store";
-import { aiResearchAuthor, aiPersona } from "@/lib/ai.functions";
+import { aiResearchAuthor, aiPersona, aiMarketOracle } from "@/lib/ai.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Search, Upload, BrainCircuit, Sparkles, User, Quote, Target, FileText } from "lucide-react";
+import { Search, Upload, BrainCircuit, Sparkles, User, Quote, Target, FileText, TrendingUp, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { Markdown } from "@/components/Markdown";
 
+type Opportunity = {
+  niche: string;
+  demandScore: number;
+  competitionScore: number;
+  rationale: string;
+  keywords: string[];
+  bisacCategory: string;
+};
+
 export function AuthorDNATab() {
-  const { authorDNA, setAuthorDNA, storyBible, setStoryBible } = useBookStore();
+  const { authorDNA, setAuthorDNA, storyBible, setStoryBible, bookContext } = useBookStore();
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState<"" | "research" | "persona">("");
+  const [loading, setLoading] = useState<"" | "research" | "persona" | "oracle">("");
+  const [opps, setOpps] = useState<Opportunity[]>([]);
   const research = useServerFn(aiResearchAuthor);
   const persona = useServerFn(aiPersona);
+  const oracle = useServerFn(aiMarketOracle);
   const photoRef = useRef<HTMLInputElement>(null);
+
+  const discoverOpportunities = async () => {
+    setLoading("oracle");
+    try {
+      const { opportunities } = await oracle({
+        data: { topic: bookContext.topic || bookContext.title, authorBio: authorDNA.bio },
+      });
+      setOpps(opportunities);
+      toast.success("Oráculo de Tendencias listo");
+    } catch (e: any) {
+      toast.error(e.message || "Error en el oráculo");
+    } finally {
+      setLoading("");
+    }
+  };
 
   const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -187,6 +213,60 @@ export function AuthorDNATab() {
             value={storyBible}
             onChange={(e) => setStoryBible(e.target.value)}
           />
+        </Card>
+
+        <Card className="rounded-2xl border-border/70 p-6 shadow-soft">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-[color:var(--ai)]" />
+              <h3 className="font-display text-lg font-semibold">Oráculo de Tendencias</h3>
+            </div>
+            <Button
+              onClick={discoverOpportunities}
+              disabled={loading === "oracle"}
+              className="ai-gradient text-[color:var(--ai-foreground)]"
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              {loading === "oracle" ? "Escaneando Amazon…" : "Descubrir Oportunidades de Mercado"}
+            </Button>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Alta demanda de búsqueda + bajas reseñas de competencia (estilo Helium 10 / Keepa).
+          </p>
+          {opps.length > 0 && (
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {opps.map((o, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-border/60 bg-surface-elevated p-4 shadow-soft animate-fade-in"
+                >
+                  <div className="flex items-center justify-between">
+                    <Badge className="bg-[color:var(--ai-muted)] text-[color:var(--ai-foreground)]">
+                      Δ {o.demandScore - o.competitionScore}
+                    </Badge>
+                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                      D{o.demandScore} / C{o.competitionScore}
+                    </span>
+                  </div>
+                  <h4 className="mt-2 font-display text-base font-semibold leading-tight">{o.niche}</h4>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{o.rationale}</p>
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {o.keywords.slice(0, 5).map((k) => (
+                      <span
+                        key={k}
+                        className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-foreground/80"
+                      >
+                        {k}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <Tag className="h-3 w-3" /> {o.bisacCategory}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       </div>
     </div>

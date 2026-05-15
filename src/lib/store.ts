@@ -45,6 +45,8 @@ export type PublishingForm = {
   categories: string;
   pricePhysical: number;
   priceDigital: number;
+  isbn: string;
+  bestsellerBlueprint: string;
 };
 
 export type DesignConfig = {
@@ -144,6 +146,8 @@ const initial = {
     categories: "",
     pricePhysical: 19.99,
     priceDigital: 9.99,
+    isbn: "",
+    bestsellerBlueprint: "",
   },
   designConfig: { font: "Lora" as const, size: "10.5pt", lineHeight: "1.55", chapterTheme: "classic" as const },
   launchKit: { emails: "", social: "", trailer: "" },
