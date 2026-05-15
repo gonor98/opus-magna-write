@@ -15,6 +15,7 @@ import { useBookStore, wordCount } from "@/lib/store";
 import {
   exportPDF,
   exportEPUB,
+  exportDOCX,
   buildPreview,
   type ProgressStep,
   type ExportOptions,
@@ -24,6 +25,7 @@ import { toast } from "sonner";
 import {
   FileText,
   BookMarked,
+  FileType2,
   Download,
   Loader2,
   BookOpen,
@@ -40,7 +42,7 @@ import {
 type Props = { open: boolean; onOpenChange: (o: boolean) => void };
 
 type Phase = "choose" | "preview" | "exporting" | "done" | "error";
-type Kind = "pdf" | "epub";
+type Kind = "pdf" | "epub" | "docx";
 
 export function ExportModal({ open, onOpenChange }: Props) {
   const state = useBookStore();
@@ -107,7 +109,7 @@ export function ExportModal({ open, onOpenChange }: Props) {
     abortRef.current = ac;
     const opts: ExportOptions = { ...(options || {}), signal: ac.signal };
     try {
-      const fn = kind === "pdf" ? exportPDF : exportEPUB;
+      const fn = kind === "pdf" ? exportPDF : kind === "epub" ? exportEPUB : exportDOCX;
       await fn(payload, (s) => setSteps(s), opts);
       setPhase("done");
       toast.success(kind === "pdf" ? "PDF descargado" : "EPUB descargado");
@@ -153,7 +155,7 @@ export function ExportModal({ open, onOpenChange }: Props) {
               <Stat label="Palabras" value={wc.toLocaleString()} />
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <FormatCard
                 icon={<FileText className="h-5 w-5" />}
                 title="PDF profesional"
@@ -164,10 +166,17 @@ export function ExportModal({ open, onOpenChange }: Props) {
               <FormatCard
                 icon={<BookMarked className="h-5 w-5" />}
                 title="EPUB 3.0"
-                desc="Reflowable, con índice navegable enriquecido, portada e ilustraciones."
+                desc="Reflowable, índice navegable, portada e ilustraciones."
                 onClick={() => choose("epub")}
                 cta="Previsualizar EPUB"
                 accent
+              />
+              <FormatCard
+                icon={<FileType2 className="h-5 w-5" />}
+                title="Manuscrito Word (.docx)"
+                desc="Listo para editoriales tradicionales. Estilos H1/H2 nativos."
+                onClick={() => choose("docx")}
+                cta="Previsualizar DOCX"
               />
             </div>
 

@@ -65,7 +65,7 @@ type HistoryEntry = {
   bookCover: string | null;
 };
 
-type State = {
+export type State = {
   authorDNA: AuthorDNA;
   storyBible: string;
   bookContext: BookContext;

@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Markdown } from "@/components/Markdown";
+import { TiptapEditor } from "@/components/TiptapEditor";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -97,7 +98,6 @@ export function ManuscriptTab() {
   const imageFn = useServerFn(aiImage);
 
   const editorRef = useRef<HTMLTextAreaElement>(null);
-  const [selection, setSelection] = useState({ text: "", start: 0, end: 0 });
 
   const active = chapters.find((c) => c.id === activeChapterId) || null;
 
@@ -176,48 +176,20 @@ export function ManuscriptTab() {
     }
   };
 
-  const onTextSelect = () => {
-    const ta = editorRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    if (start !== end) {
-      setSelection({ text: ta.value.slice(start, end), start, end });
-    } else {
-      setSelection({ text: "", start: 0, end: 0 });
-    }
-  };
-
-  const insertMarkdown = (prefix: string, suffix = "") => {
-    if (!active || !editorRef.current) return;
-    saveSnapshot(active.id, "Markdown manual");
-    const ta = editorRef.current;
-    const { selectionStart: s, selectionEnd: e } = ta;
-    const v = active.content;
-    const next = v.slice(0, s) + prefix + v.slice(s, e) + suffix + v.slice(e);
-    updateChapter(active.id, { content: next });
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(s + prefix.length, e + prefix.length);
-    });
-  };
-
-  const inlineEdit = async (action: "expand" | "rewrite" | "bestseller" | "shorten") => {
-    if (!active || !selection.text) return;
-    const activeId = active.id;
-    saveSnapshot(activeId, `IA · ${action}`);
+  /** Inline AI edit: returns the IA-rewritten text so Tiptap can replace the selection. */
+  const inlineEdit = async (text: string, action: "expand" | "rewrite" | "bestseller" | "shorten") => {
+    if (!active) return text;
+    saveSnapshot(active.id, `IA · ${action}`);
     setBusy("inline");
     try {
-      const { text } = await inlineFn({
-        data: { text: selection.text, action, persona: authorDNA.extractedPersona },
+      const { text: out } = await inlineFn({
+        data: { text, action, persona: authorDNA.extractedPersona },
       });
-      const v = active.content;
-      const next = v.slice(0, selection.start) + text + v.slice(selection.end);
-      replaceChapterContent(activeId, next, `IA inline · ${action}`);
-      setSelection({ text: "", start: 0, end: 0 });
       toast.success("Edición aplicada · Ctrl+Z para deshacer");
+      return out;
     } catch (e: any) {
       toast.error(e.message || "Error en edición IA");
+      return text;
     } finally {
       setBusy("");
     }
@@ -402,10 +374,6 @@ export function ManuscriptTab() {
             chapter={active}
             onChange={(v: string) => updateChapter(active.id, { content: v })}
             onTitleChange={(v: string) => updateChapter(active.id, { title: v })}
-            editorRef={editorRef}
-            onSelect={onTextSelect}
-            selection={selection}
-            insertMarkdown={insertMarkdown}
             inlineEdit={inlineEdit}
             chapters={chapters}
             setActiveChapterId={setActiveChapterId}
@@ -708,10 +676,6 @@ function Editor({
   chapter,
   onChange,
   onTitleChange,
-  editorRef,
-  onSelect,
-  selection,
-  insertMarkdown,
   inlineEdit,
   chapters,
   setActiveChapterId,
@@ -753,18 +717,10 @@ function Editor({
 
       <Card className="rounded-2xl border-border/70 shadow-soft animate-fade-in">
         <div className="flex flex-wrap items-center gap-2 border-b border-border/60 p-3">
-          <Button size="sm" variant="ghost" onClick={() => insertMarkdown("**", "**")}>
-            <Bold className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => insertMarkdown("*", "*")}>
-            <Italic className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => insertMarkdown("\n## ")}>
-            <Heading2 className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => insertMarkdown("\n### ")}>
-            <Heading3 className="h-4 w-4" />
-          </Button>
+          <Badge variant="secondary" className="rounded-full text-[10px]">
+            <Sparkles className="mr-1 h-3 w-3 text-[color:var(--ai)]" />
+            Selecciona texto para editar con IA
+          </Badge>
           <div className="mx-1 h-5 w-px bg-border" />
           <Button size="sm" variant="ghost" onClick={onImage}>
             <ImageIcon className="mr-1.5 h-4 w-4" /> Imagen
@@ -793,71 +749,13 @@ function Editor({
           />
         </div>
 
-        {selection.text && (
-          <div className="mx-6 my-3 flex flex-wrap items-center gap-2 rounded-xl border border-[color:var(--ai)]/40 bg-[color:var(--ai-muted)] px-3 py-2 animate-fade-in">
-            <Sparkles className="h-4 w-4 text-[color:var(--ai-foreground)]" />
-            <span className="text-xs font-medium text-[color:var(--ai-foreground)]">
-              {selection.text.length} caracteres seleccionados
-            </span>
-            <div className="ml-auto flex flex-wrap gap-2">
-              {(["expand", "rewrite", "bestseller", "shorten"] as const).map((a) => (
-                <Button
-                  key={a}
-                  size="sm"
-                  variant="outline"
-                  className="bg-surface"
-                  onClick={() => inlineEdit(a)}
-                  disabled={busy === "inline"}
-                >
-                  {a === "expand" && "Expandir"}
-                  {a === "rewrite" && "Reescribir"}
-                  {a === "bestseller" && "→ Cita"}
-                  {a === "shorten" && "Acortar"}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="grid gap-0 px-6 pb-6 lg:grid-cols-2">
-          <Textarea
-            ref={editorRef}
-            value={chapter.content}
-            onChange={(e) => onChange(e.target.value)}
-            onSelect={onSelect}
-            placeholder="Empieza a escribir o pulsa 'Escribir IA' en el corcho para que la IA redacte por ti…"
-            className="min-h-[60vh] resize-none border-0 border-r border-border/60 bg-transparent font-mono text-[13px] leading-relaxed focus-visible:ring-0"
-          />
-          <div className="overflow-auto pl-6" style={{ fontFamily: font }}>
-            <Preview chapter={chapter} />
-          </div>
-        </div>
+        <TiptapEditor
+          markdown={chapter.content}
+          onMarkdownChange={onChange}
+          onInlineEdit={inlineEdit}
+          fontFamily={font}
+        />
       </Card>
     </div>
-  );
-}
-
-function Preview({ chapter }: { chapter: any }) {
-  // Replace [ILUSTRACION:N] placeholders with images.
-  const parts = (chapter.content || "").split(/\[ILUSTRACION:(\d+)\]/);
-  return (
-    <article className="font-serif text-[15px] leading-[1.7]">
-      <h1 className="font-display text-3xl font-bold">{chapter.title}</h1>
-      <p className="mt-1 italic text-muted-foreground">{chapter.description}</p>
-      <hr className="my-4 border-border" />
-      {parts.map((part: string, i: number) => {
-        if (i % 2 === 1) {
-          const idx = parseInt(part);
-          const url = chapter.images?.[idx];
-          if (!url) return null;
-          return (
-            <figure key={i} className="my-4">
-              <img src={url} alt="" className="w-full rounded-xl border border-border" />
-            </figure>
-          );
-        }
-        return <Markdown key={i} source={part} />;
-      })}
-    </article>
   );
 }
