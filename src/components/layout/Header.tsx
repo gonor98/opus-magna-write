@@ -1,7 +1,8 @@
-import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles, FileDown, Undo2, Redo2 } from "lucide-react";
+import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles, FileDown, Undo2, Redo2, Cloud, CloudDownload, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useBookStore, wordCount } from "@/lib/store";
+import { syncToCloud, listCloudProjects, loadFromCloud } from "@/lib/cloud";
 import { toast } from "sonner";
 import { useRef, useState } from "react";
 import { ExportModal } from "@/components/ExportModal";
@@ -21,6 +22,53 @@ export function Header({ focusMode, setFocusMode }: Props) {
   const redo = useBookStore((s) => s.redo);
   const fileRef = useRef<HTMLInputElement>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [loadingCloud, setLoadingCloud] = useState(false);
+
+  const handleSync = async () => {
+    const state = useBookStore.getState();
+    setSyncing(true);
+    const tid = toast.loading("Sincronizando con Lovable Cloud…");
+    try {
+      await syncToCloud({
+        authorDNA: state.authorDNA,
+        storyBible: state.storyBible,
+        bookContext: state.bookContext,
+        chapters: state.chapters,
+        frontBackMatter: state.frontBackMatter,
+        publishingForm: state.publishingForm,
+        designConfig: state.designConfig,
+        launchKit: state.launchKit,
+        bookCover: state.bookCover,
+      });
+      toast.success("☁️ Guardado en la nube", { id: tid });
+    } catch (e: any) {
+      toast.error(e?.message || "Error sincronizando", { id: tid });
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleCloudLoad = async () => {
+    setLoadingCloud(true);
+    try {
+      const list = await listCloudProjects();
+      if (!list.length) {
+        toast("No hay proyectos en la nube todavía");
+        return;
+      }
+      const latest = list[0];
+      const data = await loadFromCloud(latest.slug);
+      if (data) {
+        importProject(data as any);
+        toast.success(`Restaurado · ${latest.title || latest.slug}`);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Error cargando de la nube");
+    } finally {
+      setLoadingCloud(false);
+    }
+  };
 
   const wc = wordCount(chapters);
 
