@@ -214,6 +214,60 @@ export function AuthorDNATab() {
             onChange={(e) => setStoryBible(e.target.value)}
           />
         </Card>
+
+        <Card className="rounded-2xl border-border/70 p-6 shadow-soft">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-[color:var(--ai)]" />
+              <h3 className="font-display text-lg font-semibold">Oráculo de Tendencias</h3>
+            </div>
+            <Button
+              onClick={discoverOpportunities}
+              disabled={loading === "oracle"}
+              className="ai-gradient text-[color:var(--ai-foreground)]"
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              {loading === "oracle" ? "Escaneando Amazon…" : "Descubrir Oportunidades de Mercado"}
+            </Button>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Alta demanda de búsqueda + bajas reseñas de competencia (estilo Helium 10 / Keepa).
+          </p>
+          {opps.length > 0 && (
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {opps.map((o, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-border/60 bg-surface-elevated p-4 shadow-soft animate-fade-in"
+                >
+                  <div className="flex items-center justify-between">
+                    <Badge className="bg-[color:var(--ai-muted)] text-[color:var(--ai-foreground)]">
+                      Δ {o.demandScore - o.competitionScore}
+                    </Badge>
+                    <span className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                      D{o.demandScore} / C{o.competitionScore}
+                    </span>
+                  </div>
+                  <h4 className="mt-2 font-display text-base font-semibold leading-tight">{o.niche}</h4>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{o.rationale}</p>
+                  <div className="mt-3 flex flex-wrap gap-1">
+                    {o.keywords.slice(0, 5).map((k) => (
+                      <span
+                        key={k}
+                        className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-foreground/80"
+                      >
+                        {k}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <Tag className="h-3 w-3" /> {o.bisacCategory}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );
