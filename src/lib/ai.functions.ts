@@ -258,6 +258,113 @@ export const aiMarketing = createServerFn({ method: "POST" })
     return { text };
   });
 
+/* ---------- Market Oracle (trend discovery) ---------- */
+export const aiMarketOracle = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      topic: z.string().optional(),
+      authorBio: z.string().optional(),
+    }).parse,
+  )
+  .handler(async ({ data }) => {
+    const gateway = getGateway();
+    const { object } = await generateObject({
+      model: gateway(DEFAULT_TEXT_MODEL),
+      schema: z.object({
+        opportunities: z
+          .array(
+            z.object({
+              niche: z.string(),
+              demandScore: z.number().min(0).max(100),
+              competitionScore: z.number().min(0).max(100),
+              rationale: z.string(),
+              keywords: z.array(z.string()).max(7),
+              bisacCategory: z.string(),
+            }),
+          )
+          .length(3),
+      }),
+      prompt: `Actúa como analista senior de Helium 10 + Keepa para Amazon KDP.
+${data.topic ? `Tema/nicho del autor: "${data.topic}".` : ""}
+${data.authorBio ? `Bio: "${data.authorBio.slice(0, 400)}".` : ""}
+Devuelve 3 oportunidades de mercado de **alta demanda + baja competencia** en Amazon. Para cada una incluye:
+- niche: nombre comercial atractivo del sub-nicho.
+- demandScore (0-100), competitionScore (0-100) — la diferencia debe ser >35.
+- rationale: por qué ahora (tendencia, gap, comportamiento del lector).
+- keywords: 5-7 long-tail keywords reales para A9.
+- bisacCategory: la ruta BISAC oculta más rentable.`,
+    });
+    return object;
+  });
+
+/* ---------- ACX audiobook script ---------- */
+export const aiACXScript = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      content: z.string().min(50),
+      chapterTitle: z.string(),
+      persona: z.string().optional(),
+    }).parse,
+  )
+  .handler(async ({ data }) => {
+    const gateway = getGateway();
+    const { text } = await generateText({
+      model: gateway(DEFAULT_TEXT_MODEL),
+      prompt: `Adapta el siguiente capítulo a un **script ACX (Audible)** profesional para narración.
+REGLAS:
+- Marca pausas con [PAUSA: corta|media|larga].
+- Marca énfasis con [ÉNFASIS], cambios de tono con [TONO: cálido|firme|reflexivo].
+- Inserta [RESPIRA] cada 80-120 palabras para que el narrador descanse.
+- Sustituye números/abreviaturas por su forma hablada (ej. "USD 1.000" → "mil dólares").
+- Mantén la voz: ${data.persona || "autoral, cálida, autoritativa"}.
+
+Capítulo: "${data.chapterTitle}"
+"""
+${data.content.slice(0, 7000)}
+"""
+
+Devuelve el script listo para grabar, sin explicaciones.`,
+    });
+    return { text };
+  });
+
+/* ---------- Translation preserving author DNA ---------- */
+export const aiTranslate = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      content: z.string().min(20),
+      targetLang: z.enum(["en", "zh", "fr", "pt", "de"]),
+      persona: z.string().optional(),
+    }).parse,
+  )
+  .handler(async ({ data }) => {
+    const langName: Record<string, string> = {
+      en: "Inglés (mercado US/UK)",
+      zh: "Mandarín simplificado (mercado China continental)",
+      fr: "Francés (mercado FR/CA)",
+      pt: "Portugués (mercado BR/PT)",
+      de: "Alemán (mercado DACH)",
+    };
+    const gateway = getGateway();
+    const { text } = await generateText({
+      model: gateway(DEFAULT_TEXT_MODEL),
+      prompt: `Traduce el siguiente texto a ${langName[data.targetLang]}.
+DIRECTIVA CRÍTICA: NO es traducción literal. Es **transcreación cultural**:
+1. Preserva los modismos, la ironía y el ritmo del autor original adaptándolos a equivalentes naturales en la cultura destino.
+2. Mantén la "huella autoral" definida en: ${data.persona || "voz cálida y autoritativa"}.
+3. Si una referencia cultural no se entiende fuera del idioma original, sustitúyela por una equivalente local del mismo registro.
+4. Conserva la estructura markdown (##, **, etc.).
+
+Texto:
+"""
+${data.content.slice(0, 8000)}
+"""
+
+Devuelve SOLO el texto transcreado.`,
+    });
+    return { text };
+  });
+
 /* ---------- Image generation ---------- */
 export const aiImage = createServerFn({ method: "POST" })
   .inputValidator(
