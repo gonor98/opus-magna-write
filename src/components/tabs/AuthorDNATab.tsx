@@ -22,12 +22,29 @@ type Opportunity = {
 };
 
 export function AuthorDNATab() {
-  const { authorDNA, setAuthorDNA, storyBible, setStoryBible } = useBookStore();
+  const { authorDNA, setAuthorDNA, storyBible, setStoryBible, bookContext } = useBookStore();
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState<"" | "research" | "persona">("");
+  const [loading, setLoading] = useState<"" | "research" | "persona" | "oracle">("");
+  const [opps, setOpps] = useState<Opportunity[]>([]);
   const research = useServerFn(aiResearchAuthor);
   const persona = useServerFn(aiPersona);
+  const oracle = useServerFn(aiMarketOracle);
   const photoRef = useRef<HTMLInputElement>(null);
+
+  const discoverOpportunities = async () => {
+    setLoading("oracle");
+    try {
+      const { opportunities } = await oracle({
+        data: { topic: bookContext.topic || bookContext.title, authorBio: authorDNA.bio },
+      });
+      setOpps(opportunities);
+      toast.success("Oráculo de Tendencias listo");
+    } catch (e: any) {
+      toast.error(e.message || "Error en el oráculo");
+    } finally {
+      setLoading("");
+    }
+  };
 
   const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
