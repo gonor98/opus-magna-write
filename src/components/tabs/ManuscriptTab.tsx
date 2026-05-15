@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Markdown } from "@/components/Markdown";
+import { TiptapEditor } from "@/components/TiptapEditor";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -756,28 +757,5 @@ function Editor({
         />
       </Card>
     </div>
-  );
-}
-  // Replace [ILUSTRACION:N] placeholders with images.
-  const parts = (chapter.content || "").split(/\[ILUSTRACION:(\d+)\]/);
-  return (
-    <article className="font-serif text-[15px] leading-[1.7]">
-      <h1 className="font-display text-3xl font-bold">{chapter.title}</h1>
-      <p className="mt-1 italic text-muted-foreground">{chapter.description}</p>
-      <hr className="my-4 border-border" />
-      {parts.map((part: string, i: number) => {
-        if (i % 2 === 1) {
-          const idx = parseInt(part);
-          const url = chapter.images?.[idx];
-          if (!url) return null;
-          return (
-            <figure key={i} className="my-4">
-              <img src={url} alt="" className="w-full rounded-xl border border-border" />
-            </figure>
-          );
-        }
-        return <Markdown key={i} source={part} />;
-      })}
-    </article>
   );
 }
