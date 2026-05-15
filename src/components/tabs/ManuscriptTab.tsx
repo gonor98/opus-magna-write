@@ -373,10 +373,6 @@ export function ManuscriptTab() {
             chapter={active}
             onChange={(v: string) => updateChapter(active.id, { content: v })}
             onTitleChange={(v: string) => updateChapter(active.id, { title: v })}
-            editorRef={editorRef}
-            onSelect={onTextSelect}
-            selection={selection}
-            insertMarkdown={insertMarkdown}
             inlineEdit={inlineEdit}
             chapters={chapters}
             setActiveChapterId={setActiveChapterId}
