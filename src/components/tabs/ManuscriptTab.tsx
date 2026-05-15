@@ -675,10 +675,6 @@ function Editor({
   chapter,
   onChange,
   onTitleChange,
-  editorRef,
-  onSelect,
-  selection,
-  insertMarkdown,
   inlineEdit,
   chapters,
   setActiveChapterId,
@@ -720,18 +716,10 @@ function Editor({
 
       <Card className="rounded-2xl border-border/70 shadow-soft animate-fade-in">
         <div className="flex flex-wrap items-center gap-2 border-b border-border/60 p-3">
-          <Button size="sm" variant="ghost" onClick={() => insertMarkdown("**", "**")}>
-            <Bold className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => insertMarkdown("*", "*")}>
-            <Italic className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => insertMarkdown("\n## ")}>
-            <Heading2 className="h-4 w-4" />
-          </Button>
-          <Button size="sm" variant="ghost" onClick={() => insertMarkdown("\n### ")}>
-            <Heading3 className="h-4 w-4" />
-          </Button>
+          <Badge variant="secondary" className="rounded-full text-[10px]">
+            <Sparkles className="mr-1 h-3 w-3 text-[color:var(--ai)]" />
+            Selecciona texto para editar con IA
+          </Badge>
           <div className="mx-1 h-5 w-px bg-border" />
           <Button size="sm" variant="ghost" onClick={onImage}>
             <ImageIcon className="mr-1.5 h-4 w-4" /> Imagen
@@ -760,51 +748,16 @@ function Editor({
           />
         </div>
 
-        {selection.text && (
-          <div className="mx-6 my-3 flex flex-wrap items-center gap-2 rounded-xl border border-[color:var(--ai)]/40 bg-[color:var(--ai-muted)] px-3 py-2 animate-fade-in">
-            <Sparkles className="h-4 w-4 text-[color:var(--ai-foreground)]" />
-            <span className="text-xs font-medium text-[color:var(--ai-foreground)]">
-              {selection.text.length} caracteres seleccionados
-            </span>
-            <div className="ml-auto flex flex-wrap gap-2">
-              {(["expand", "rewrite", "bestseller", "shorten"] as const).map((a) => (
-                <Button
-                  key={a}
-                  size="sm"
-                  variant="outline"
-                  className="bg-surface"
-                  onClick={() => inlineEdit(a)}
-                  disabled={busy === "inline"}
-                >
-                  {a === "expand" && "Expandir"}
-                  {a === "rewrite" && "Reescribir"}
-                  {a === "bestseller" && "→ Cita"}
-                  {a === "shorten" && "Acortar"}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="grid gap-0 px-6 pb-6 lg:grid-cols-2">
-          <Textarea
-            ref={editorRef}
-            value={chapter.content}
-            onChange={(e) => onChange(e.target.value)}
-            onSelect={onSelect}
-            placeholder="Empieza a escribir o pulsa 'Escribir IA' en el corcho para que la IA redacte por ti…"
-            className="min-h-[60vh] resize-none border-0 border-r border-border/60 bg-transparent font-mono text-[13px] leading-relaxed focus-visible:ring-0"
-          />
-          <div className="overflow-auto pl-6" style={{ fontFamily: font }}>
-            <Preview chapter={chapter} />
-          </div>
-        </div>
+        <TiptapEditor
+          markdown={chapter.content}
+          onMarkdownChange={onChange}
+          onInlineEdit={inlineEdit}
+          fontFamily={font}
+        />
       </Card>
     </div>
   );
 }
-
-function Preview({ chapter }: { chapter: any }) {
   // Replace [ILUSTRACION:N] placeholders with images.
   const parts = (chapter.content || "").split(/\[ILUSTRACION:(\d+)\]/);
   return (
