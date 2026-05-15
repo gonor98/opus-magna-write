@@ -723,3 +723,148 @@ nav .group-title{margin-top:1em;font-weight:bold;text-transform:uppercase;letter
   tracker.done("package", "Descarga iniciada");
   });
 }
+
+/* -------------------- DOCX (Word manuscript) -------------------- */
+
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  AlignmentType,
+  PageBreak,
+} from "docx";
+
+function parseRuns(text: string): TextRun[] {
+  const tokens: TextRun[] = [];
+  const re = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    if (m.index > last) tokens.push(new TextRun(text.slice(last, m.index)));
+    if (m[0].startsWith("**")) tokens.push(new TextRun({ text: m[0].slice(2, -2), bold: true }));
+    else tokens.push(new TextRun({ text: m[0].slice(1, -1), italics: true }));
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) tokens.push(new TextRun(text.slice(last)));
+  return tokens.length ? tokens : [new TextRun(text)];
+}
+
+function mdToDocxParagraphs(md: string): Paragraph[] {
+  const out: Paragraph[] = [];
+  const lines = (md || "").replace(/\[ILUSTRACION:\d+\]/g, "").split(/\n/);
+  let buf: string[] = [];
+  const flush = () => {
+    if (!buf.length) return;
+    const text = buf.join(" ").trim();
+    if (text) out.push(new Paragraph({ children: parseRuns(text), spacing: { after: 200 } }));
+    buf = [];
+  };
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) { flush(); continue; }
+    if (line.startsWith("### ")) {
+      flush();
+      out.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: parseRuns(line.slice(4)), spacing: { before: 240, after: 160 } }));
+    } else if (line.startsWith("## ")) {
+      flush();
+      out.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: parseRuns(line.slice(3)), spacing: { before: 320, after: 200 } }));
+    } else if (line.startsWith("# ")) {
+      flush();
+      out.push(new Paragraph({ heading: HeadingLevel.TITLE, children: parseRuns(line.slice(2)) }));
+    } else if (line.startsWith("> ")) {
+      flush();
+      out.push(new Paragraph({ children: parseRuns(line.slice(2)), indent: { left: 720 }, spacing: { after: 200 } }));
+    } else {
+      buf.push(line);
+    }
+  }
+  flush();
+  return out;
+}
+
+export async function exportDOCX(p: ExportPayload, onProgress?: OnProgress, options?: ExportOptions) {
+  const tracker = new ProgressTracker(
+    [
+      { id: "init", label: "Inicializando documento Word" },
+      { id: "title", label: "Componiendo portadilla" },
+      { id: "front", label: "Front matter (dedicatoria, prólogo)" },
+      { id: "chapters", label: "Maquetando capítulos" },
+      { id: "back", label: "Back matter (epílogo, créditos)" },
+      { id: "save", label: "Empaquetando .docx" },
+    ],
+    onProgress,
+    options?.signal,
+  );
+
+  const chapters = sliceChapters(p.chapters, options?.chapterRange);
+  const offset = options?.chapterRange ? Math.max(0, options.chapterRange.from - 1) : 0;
+
+  return tracker.wrap(async () => {
+    await tracker.start("init");
+    const children: Paragraph[] = [];
+    tracker.done("init");
+
+    await tracker.start("title");
+    children.push(
+      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 2400, after: 200 }, children: [new TextRun({ text: p.bookContext.title || "Sin título", bold: true, size: 56 })] }),
+      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 800 }, children: [new TextRun({ text: p.bookContext.subtitle || "", italics: true, size: 28 })] }),
+      new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: p.publishingForm.author || "Autor", size: 24 })] }),
+      new Paragraph({ children: [new PageBreak()] }),
+    );
+    tracker.done("title");
+
+    await tracker.start("front");
+    const fm = p.frontBackMatter;
+    const block = (title: string, body: string) => {
+      if (!body) return;
+      children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })], spacing: { before: 400, after: 200 } }));
+      children.push(...mdToDocxParagraphs(body));
+      children.push(new Paragraph({ children: [new PageBreak()] }));
+    };
+    block("Dedicatoria", fm.dedication);
+    block("Prólogo", fm.prologue);
+    tracker.done("front");
+
+    await tracker.start("chapters", `0/${chapters.length}`);
+    for (let i = 0; i < chapters.length; i++) {
+      const ch = chapters[i];
+      children.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: `${offset + i + 1}. ${ch.title}`, bold: true })], spacing: { before: 480, after: 240 } }));
+      children.push(...mdToDocxParagraphs(ch.content || ch.description || ""));
+      children.push(new Paragraph({ children: [new PageBreak()] }));
+      tracker.update("chapters", `${i + 1}/${chapters.length} · ${ch.title}`);
+      if (i % 2 === 0) await sleep(0);
+    }
+    tracker.done("chapters", `${chapters.length} capítulos`);
+
+    await tracker.start("back");
+    block("Epílogo", fm.epilogue);
+    block("Agradecimientos", fm.acknowledgments);
+    block("Sobre el autor", p.publishingForm.shortBio || p.authorDNA.bio);
+    tracker.done("back");
+
+    await tracker.start("save");
+    const doc = new Document({
+      creator: p.publishingForm.author || "Opus Magna Studio",
+      title: p.bookContext.title || "Manuscrito",
+      description: p.publishingForm.description || "",
+      styles: {
+        default: { document: { run: { font: "Georgia", size: 24 } } },
+      },
+      sections: [{
+        properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+        children,
+      }],
+    });
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
+    a.download = `${slugify(p.bookContext.title)}${suffix}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    tracker.done("save", "Descarga iniciada");
+  });
+}
