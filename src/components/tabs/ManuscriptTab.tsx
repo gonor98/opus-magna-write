@@ -97,7 +97,6 @@ export function ManuscriptTab() {
   const imageFn = useServerFn(aiImage);
 
   const editorRef = useRef<HTMLTextAreaElement>(null);
-  const [selection, setSelection] = useState({ text: "", start: 0, end: 0 });
 
   const active = chapters.find((c) => c.id === activeChapterId) || null;
 
@@ -176,48 +175,20 @@ export function ManuscriptTab() {
     }
   };
 
-  const onTextSelect = () => {
-    const ta = editorRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    if (start !== end) {
-      setSelection({ text: ta.value.slice(start, end), start, end });
-    } else {
-      setSelection({ text: "", start: 0, end: 0 });
-    }
-  };
-
-  const insertMarkdown = (prefix: string, suffix = "") => {
-    if (!active || !editorRef.current) return;
-    saveSnapshot(active.id, "Markdown manual");
-    const ta = editorRef.current;
-    const { selectionStart: s, selectionEnd: e } = ta;
-    const v = active.content;
-    const next = v.slice(0, s) + prefix + v.slice(s, e) + suffix + v.slice(e);
-    updateChapter(active.id, { content: next });
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(s + prefix.length, e + prefix.length);
-    });
-  };
-
-  const inlineEdit = async (action: "expand" | "rewrite" | "bestseller" | "shorten") => {
-    if (!active || !selection.text) return;
-    const activeId = active.id;
-    saveSnapshot(activeId, `IA · ${action}`);
+  /** Inline AI edit: returns the IA-rewritten text so Tiptap can replace the selection. */
+  const inlineEdit = async (text: string, action: "expand" | "rewrite" | "bestseller" | "shorten") => {
+    if (!active) return text;
+    saveSnapshot(active.id, `IA · ${action}`);
     setBusy("inline");
     try {
-      const { text } = await inlineFn({
-        data: { text: selection.text, action, persona: authorDNA.extractedPersona },
+      const { text: out } = await inlineFn({
+        data: { text, action, persona: authorDNA.extractedPersona },
       });
-      const v = active.content;
-      const next = v.slice(0, selection.start) + text + v.slice(selection.end);
-      replaceChapterContent(activeId, next, `IA inline · ${action}`);
-      setSelection({ text: "", start: 0, end: 0 });
       toast.success("Edición aplicada · Ctrl+Z para deshacer");
+      return out;
     } catch (e: any) {
       toast.error(e.message || "Error en edición IA");
+      return text;
     } finally {
       setBusy("");
     }
