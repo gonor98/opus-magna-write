@@ -1,16 +1,25 @@
 import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore } from "@/lib/store";
-import { aiResearchAuthor, aiPersona } from "@/lib/ai.functions";
+import { aiResearchAuthor, aiPersona, aiMarketOracle } from "@/lib/ai.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Search, Upload, BrainCircuit, Sparkles, User, Quote, Target, FileText } from "lucide-react";
+import { Search, Upload, BrainCircuit, Sparkles, User, Quote, Target, FileText, TrendingUp, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { Markdown } from "@/components/Markdown";
+
+type Opportunity = {
+  niche: string;
+  demandScore: number;
+  competitionScore: number;
+  rationale: string;
+  keywords: string[];
+  bisacCategory: string;
+};
 
 export function AuthorDNATab() {
   const { authorDNA, setAuthorDNA, storyBible, setStoryBible } = useBookStore();
