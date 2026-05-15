@@ -98,6 +98,8 @@ export function maybeSeedDemo() {
       categories: "Desarrollo profesional, Liderazgo, Crecimiento personal",
       pricePhysical: 22.9,
       priceDigital: 9.99,
+      isbn: "",
+      bestsellerBlueprint: "Autoayuda estilo James Clear",
     },
     designConfig: { font: "Lora", size: "10.5pt", lineHeight: "1.55", chapterTheme: "luxe" },
     launchKit: { emails: "", social: "", trailer: "" },
