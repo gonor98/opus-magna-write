@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore } from "@/lib/store";
 import { aiMarketing, aiACXScript, aiTranslate } from "@/lib/ai.functions";
@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Mail, Megaphone, MonitorPlay, Copy, Mic, Languages, Headphones, Upload, Download, Play, Pause, Wand2 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Mail, Megaphone, MonitorPlay, Copy, Mic, Languages, Headphones, Upload, Download, Play, Pause, Wand2, Volume2, Square, Sliders } from "lucide-react";
 import { Markdown } from "@/components/Markdown";
 import { toast } from "sonner";
 
