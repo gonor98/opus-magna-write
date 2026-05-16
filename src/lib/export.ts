@@ -917,6 +917,24 @@ export async function exportDOCX(p: ExportPayload, onProgress?: OnProgress, opti
       description: p.publishingForm.description || "",
       styles: {
         default: { document: { run: { font: "Georgia", size: 24 } } },
+        paragraphStyles: [
+          { id: "Heading1", name: "Heading 1", basedOn: "Normal", next: "Normal", quickFormat: true,
+            run: { size: 36, bold: true, font: "Georgia" },
+            paragraph: { spacing: { before: 360, after: 200 }, outlineLevel: 0 } },
+          { id: "Heading2", name: "Heading 2", basedOn: "Normal", next: "Normal", quickFormat: true,
+            run: { size: 28, bold: true, font: "Georgia" },
+            paragraph: { spacing: { before: 280, after: 160 }, outlineLevel: 1 } },
+        ],
+      },
+      numbering: {
+        config: [
+          { reference: "om-bullets",
+            levels: [{ level: 0, format: LevelFormat.BULLET, text: "•", alignment: AlignmentType.LEFT,
+              style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] },
+          { reference: "om-numbers",
+            levels: [{ level: 0, format: LevelFormat.DECIMAL, text: "%1.", alignment: AlignmentType.LEFT,
+              style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] },
+        ],
       },
       sections: [{
         properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
