@@ -304,29 +304,41 @@ export const aiACXScript = createServerFn({ method: "POST" })
       content: z.string().min(50),
       chapterTitle: z.string(),
       persona: z.string().optional(),
+      /** WPM target (default 155 — Audible sweet spot). */
+      wpm: z.number().min(110).max(190).optional(),
+      /** Max words per take/section so narrators can record without losing breath. */
+      maxWordsPerTake: z.number().min(40).max(120).optional(),
     }).parse,
   )
   .handler(async ({ data }) => {
     const gateway = getGateway();
+    const wpm = data.wpm ?? 155;
+    const maxWords = data.maxWordsPerTake ?? 70;
     const { text } = await generateText({
       model: gateway(DEFAULT_TEXT_MODEL),
-      prompt: `Adapta el siguiente capítulo a un **script ACX (Audible)** profesional para narración.
-REGLAS:
-- Marca pausas con [PAUSA: corta|media|larga].
-- Marca énfasis con [ÉNFASIS], cambios de tono con [TONO: cálido|firme|reflexivo].
-- Inserta [RESPIRA] cada 80-120 palabras para que el narrador descanse.
-- Sustituye números/abreviaturas por su forma hablada (ej. "USD 1.000" → "mil dólares").
-- Mantén la voz: ${data.persona || "autoral, cálida, autoritativa"}.
+      prompt: `Adapta el siguiente capítulo a un **script ACX (Audible) profesional broadcast-ready** para narración.
+
+REGLAS DURAS (no las violes):
+- Encabeza el script con: "TÍTULO: ${data.chapterTitle}" y una línea "ESTIMADO: <minutos> min @ ${wpm} WPM" calculada a partir del conteo de palabras.
+- Divide el capítulo en SECCIONES numeradas "## SECCIÓN N — <subtítulo breve>" cada **${maxWords} palabras máximo** (corte en frontera de frase). Cada sección lleva una línea "[DURACIÓN ~Xs]".
+- Dentro de cada sección, separa cada párrafo del manuscrito en su propio bloque con sangría y línea en blanco antes/después.
+- Marca pausas con [PAUSA: 0.5s], [PAUSA: 1s], [PAUSA: 2s] (literal, en segundos).
+- Marca énfasis con *énfasis* en cursiva ACX y cambios de tono con [TONO: cálido|firme|reflexivo|íntimo|enérgico].
+- Inserta [RESPIRA] al menos cada 90 palabras, idealmente al cierre de cada párrafo largo.
+- Sustituye números y abreviaturas por su forma hablada ("USD 1.000" → "mil dólares", "2026" → "dos mil veintiséis", "etc." → "etcétera").
+- Pronunciación: marca extranjerismos y nombres difíciles con [PRON: "fonética"].
+- Cierra cada sección con "—FIN SECCIÓN N—" y el script entero con "—FIN DEL CAPÍTULO—".
+- Mantén la voz autoral: ${data.persona || "cálida, autoritativa, ritmo conversacional con autoridad"}.
+- NO añadas comentarios fuera de script. Devuelve SOLO el script listo para grabar.
 
 Capítulo: "${data.chapterTitle}"
 """
 ${data.content.slice(0, 7000)}
-"""
-
-Devuelve el script listo para grabar, sin explicaciones.`,
+"""`,
     });
     return { text };
   });
+
 
 /* ---------- Translation preserving author DNA ---------- */
 export const aiTranslate = createServerFn({ method: "POST" })
@@ -335,6 +347,12 @@ export const aiTranslate = createServerFn({ method: "POST" })
       content: z.string().min(20),
       targetLang: z.enum(["en", "zh", "fr", "pt", "de"]),
       persona: z.string().optional(),
+      /** 0 = transcreación libre, 100 = literal */
+      literalness: z.number().min(0).max(100).optional(),
+      /** 0 = tono neutralizado, 100 = tono autoral 1:1 */
+      tonePreservation: z.number().min(0).max(100).optional(),
+      /** 0 = estilo simplificado, 100 = estilo, ritmo y figuras intactos */
+      stylePreservation: z.number().min(0).max(100).optional(),
     }).parse,
   )
   .handler(async ({ data }) => {
@@ -345,22 +363,38 @@ export const aiTranslate = createServerFn({ method: "POST" })
       pt: "Portugués (mercado BR/PT)",
       de: "Alemán (mercado DACH)",
     };
+    const lit = data.literalness ?? 30;
+    const tone = data.tonePreservation ?? 85;
+    const style = data.stylePreservation ?? 85;
+    const litLabel = lit < 25 ? "muy libre / transcreación" : lit < 60 ? "equilibrada" : lit < 85 ? "fiel al original" : "casi literal";
+    const toneLabel = tone < 30 ? "neutralizado" : tone < 70 ? "moderado" : "1:1 con el autor";
+    const styleLabel = style < 30 ? "simplificado" : style < 70 ? "preservado" : "intacto (ritmo y figuras)";
+
     const gateway = getGateway();
     const { text } = await generateText({
       model: gateway(DEFAULT_TEXT_MODEL),
       prompt: `Traduce el siguiente texto a ${langName[data.targetLang]}.
-DIRECTIVA CRÍTICA: NO es traducción literal. Es **transcreación cultural**:
-1. Preserva los modismos, la ironía y el ritmo del autor original adaptándolos a equivalentes naturales en la cultura destino.
-2. Mantén la "huella autoral" definida en: ${data.persona || "voz cálida y autoritativa"}.
-3. Si una referencia cultural no se entiende fuera del idioma original, sustitúyela por una equivalente local del mismo registro.
-4. Conserva la estructura markdown (##, **, etc.).
 
-Texto:
+CONTROLES DE ADN AUTORAL (obligatorios):
+- Literalidad: ${lit}/100 → ${litLabel}.
+- Preservación de tono: ${tone}/100 → ${toneLabel}.
+- Preservación de estilo: ${style}/100 → ${styleLabel}.
+
+DIRECTIVAS:
+1. ${lit < 60
+        ? "No traduzcas literal: adapta modismos, ironía y referencias a equivalentes naturales en la cultura destino."
+        : "Mantente cerca de la sintaxis y léxico original; adapta solo lo imprescindible."}
+2. Voz autoral de referencia: ${data.persona || "voz cálida, autoritativa, ritmo conversacional"}.
+3. Si una referencia cultural no transfiere, ${lit < 60 ? "reemplázala por una local del mismo registro" : "mantenla y añade un giro mínimo para comprensión"}.
+4. **NO ROMPAS LA ESTRUCTURA**: conserva exactamente los encabezados markdown (#, ##, ###), negritas (**...**), cursivas (*...*), citas (>), listas (-, 1.), y los placeholders [ILUSTRACION:N]. Mantén el mismo número de párrafos.
+5. ${data.targetLang === "zh" ? "Usa puntuación china completa（，。！？" : "Usa la puntuación nativa del idioma destino."}${data.targetLang === "zh" ? "” idioms 成语 cuando aporten densidad cultural)." : ""}
+
+Texto fuente:
 """
 ${data.content.slice(0, 8000)}
 """
 
-Devuelve SOLO el texto transcreado.`,
+Devuelve SOLO el texto transcreado, sin notas del traductor.`,
     });
     return { text };
   });

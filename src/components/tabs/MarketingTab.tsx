@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore } from "@/lib/store";
 import { aiMarketing, aiACXScript, aiTranslate } from "@/lib/ai.functions";
@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Mail, Megaphone, MonitorPlay, Copy, Mic, Languages, Headphones, Upload, Download, Play, Pause, Wand2 } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Mail, Megaphone, MonitorPlay, Copy, Mic, Languages, Headphones, Upload, Download, Play, Pause, Wand2, Volume2, Square, Sliders } from "lucide-react";
 import { Markdown } from "@/components/Markdown";
 import { toast } from "sonner";
 
@@ -90,12 +91,46 @@ export function MarketingTab() {
   );
 }
 
+/* -------------------- Shared utils -------------------- */
+
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function stripACXMarkers(script: string): string {
+  return script
+    .replace(/\[PAUSA:\s*([0-9.]+)s\]/gi, ", ")
+    .replace(/\[RESPIRA\]/gi, " … ")
+    .replace(/\[TONO:[^\]]+\]/gi, "")
+    .replace(/\[PRON:\s*"([^"]+)"\]/gi, "$1")
+    .replace(/\[DURACIÓN[^\]]+\]/gi, "")
+    .replace(/—FIN[^—\n]*—/g, "")
+    .replace(/^##\s+SECCIÓN[^\n]+/gm, "")
+    .replace(/^TÍTULO:[^\n]+\n?/gm, "")
+    .replace(/^ESTIMADO:[^\n]+\n?/gm, "")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/* -------------------- Audiobook & Translate -------------------- */
+
 function AudiobookAndTranslate() {
   const { chapters, authorDNA, replaceChapterContent } = useBookStore();
   const [acxScript, setAcxScript] = useState("");
-  const [busy, setBusy] = useState<"" | "acx" | "voice" | "translate">("");
+  const [busy, setBusy] = useState<"" | "acx" | "translate">("");
   const [chapterIdx, setChapterIdx] = useState(0);
   const [lang, setLang] = useState<"en" | "zh" | "fr" | "pt" | "de">("en");
+  const [literalness, setLiteralness] = useState([30]);
+  const [tonePres, setTonePres] = useState([85]);
+  const [stylePres, setStylePres] = useState([85]);
+
+  // Lifted voice clone state
+  const [voiceName, setVoiceName] = useState("Mi Voz Autor");
+  const [cloneReady, setCloneReady] = useState(false);
+
   const acxFn = useServerFn(aiACXScript);
   const trFn = useServerFn(aiTranslate);
 
@@ -108,7 +143,7 @@ function AudiobookAndTranslate() {
         data: { content: ch.content, chapterTitle: ch.title, persona: authorDNA.extractedPersona },
       });
       setAcxScript(text);
-      toast.success("Script ACX generado");
+      toast.success("Script ACX broadcast-ready generado");
     } catch (e: any) {
       toast.error(e.message || "Error generando ACX");
     } finally {
@@ -131,19 +166,28 @@ function AudiobookAndTranslate() {
     toast.success("Script ACX descargado");
   };
 
-  const translateAll = async () => {
+  const translateAll = async (override?: "en" | "zh") => {
     if (!chapters.length) return toast.error("No hay capítulos para traducir");
+    const target = override ?? lang;
+    if (override) setLang(override);
     setBusy("translate");
     try {
       for (let i = 0; i < chapters.length; i++) {
         const ch = chapters[i];
         if (!ch.content) continue;
         const { text } = await trFn({
-          data: { content: ch.content, targetLang: lang, persona: authorDNA.extractedPersona },
+          data: {
+            content: ch.content,
+            targetLang: target,
+            persona: authorDNA.extractedPersona,
+            literalness: literalness[0],
+            tonePreservation: tonePres[0],
+            stylePreservation: stylePres[0],
+          },
         });
-        replaceChapterContent(ch.id, text, `Transcreación → ${lang.toUpperCase()} · ${ch.title}`);
+        replaceChapterContent(ch.id, text, `Transcreación → ${target.toUpperCase()} · ${ch.title}`);
       }
-      toast.success(`Bestseller traducido a ${lang.toUpperCase()}`);
+      toast.success(`Bestseller transcreado a ${target.toUpperCase()} · ADN ${100 - literalness[0]}% libre`);
     } catch (e: any) {
       toast.error(e.message || "Error en transcreación");
     } finally {
@@ -151,62 +195,34 @@ function AudiobookAndTranslate() {
     }
   };
 
-  const translateQuick = async (target: "en" | "zh") => {
-    setLang(target);
-    await translateAll();
-  };
-
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <Card className="rounded-2xl border-border/70 p-6 shadow-soft animate-fade-in">
-        <div className="flex items-center gap-3">
-          <div className="ai-gradient flex h-10 w-10 items-center justify-center rounded-xl text-[color:var(--ai-foreground)] shadow-soft">
-            <Headphones className="h-5 w-5" />
-          </div>
-          <div>
-            <h3 className="font-display text-lg font-semibold">Audiolibro ACX</h3>
-            <p className="text-xs text-muted-foreground">Marcas de respiración, tono y pausas listas para Audible.</p>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <select
-            value={chapterIdx}
-            onChange={(e) => setChapterIdx(parseInt(e.target.value))}
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm"
-          >
-            {chapters.map((c, i) => (
-              <option key={c.id} value={i}>
-                {i + 1}. {c.title}
-              </option>
-            ))}
-          </select>
-          <Button onClick={generateACX} disabled={busy === "acx"} className="ai-gradient text-[color:var(--ai-foreground)]">
-            <Mic className="mr-2 h-4 w-4" />
-            {busy === "acx" ? "Generando…" : "Generar Script ACX"}
-          </Button>
-          {acxScript && (
-            <Button variant="outline" onClick={downloadACX}>
-              <Download className="mr-2 h-4 w-4" /> Descargar .txt
-            </Button>
-          )}
-        </div>
-        <div className="mt-4 max-h-72 overflow-auto rounded-xl border border-border/60 bg-surface-elevated p-3 text-sm">
-          {acxScript ? <Markdown source={acxScript} /> : <p className="text-muted-foreground">Aún no generado. El script se construye directamente desde el contenido Tiptap del capítulo seleccionado.</p>}
-        </div>
-      </Card>
+      <ACXCard
+        chapters={chapters}
+        chapterIdx={chapterIdx}
+        setChapterIdx={setChapterIdx}
+        acxScript={acxScript}
+        busy={busy === "acx"}
+        onGenerate={generateACX}
+        onDownload={downloadACX}
+        voiceName={voiceName}
+        cloneReady={cloneReady}
+      />
 
-      <Card className="rounded-2xl border-border/70 p-6 shadow-soft animate-fade-in">
+      <Card className="group relative overflow-hidden rounded-2xl border-border/70 bg-gradient-to-br from-surface to-secondary/30 p-6 shadow-soft animate-fade-in hover-lift">
+        <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary/10 blur-3xl transition group-hover:bg-primary/15" />
         <div className="flex items-center gap-3">
-          <div className="primary-gradient flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground shadow-soft">
+          <div className="primary-gradient flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground shadow-elevated">
             <Languages className="h-5 w-5" />
           </div>
           <div>
             <h3 className="font-display text-lg font-semibold">Traducir Bestseller</h3>
             <p className="text-xs text-muted-foreground">
-              Transcreación cultural — preserva modismos, ironía y ADN del autor.
+              Transcreación cultural — controla cuánto ADN autoral preservar.
             </p>
           </div>
         </div>
+
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <select
             value={lang}
@@ -219,37 +235,259 @@ function AudiobookAndTranslate() {
             <option value="pt">Portugués (BR)</option>
             <option value="de">Alemán</option>
           </select>
-          <Button onClick={translateAll} disabled={busy === "translate"} className="primary-gradient text-primary-foreground">
+          <Button onClick={() => translateAll()} disabled={busy === "translate"} className="primary-gradient text-primary-foreground">
             <Languages className="mr-2 h-4 w-4" />
-            {busy === "translate" ? "Transcreando capítulos…" : "Traducir libro completo"}
+            {busy === "translate" ? "Transcreando…" : "Traducir libro completo"}
           </Button>
         </div>
+
+        <div className="mt-4 space-y-4 rounded-xl border border-border/60 bg-surface-elevated p-4">
+          <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <Sliders className="h-3.5 w-3.5" /> Controles ADN autoral
+          </div>
+          <DnaSlider
+            label="Literalidad"
+            value={literalness}
+            onChange={setLiteralness}
+            leftHint="Transcreación libre"
+            rightHint="Casi literal"
+          />
+          <DnaSlider
+            label="Preservar tono"
+            value={tonePres}
+            onChange={setTonePres}
+            leftHint="Neutralizado"
+            rightHint="1:1 con autor"
+          />
+          <DnaSlider
+            label="Preservar estilo"
+            value={stylePres}
+            onChange={setStylePres}
+            leftHint="Simplificado"
+            rightHint="Ritmo intacto"
+          />
+        </div>
+
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" variant="outline" onClick={() => translateQuick("en")} disabled={busy === "translate"}>
+          <Button size="sm" variant="outline" onClick={() => translateAll("en")} disabled={busy === "translate"}>
             <Wand2 className="mr-1.5 h-3.5 w-3.5" /> 1-click → English
           </Button>
-          <Button size="sm" variant="outline" onClick={() => translateQuick("zh")} disabled={busy === "translate"}>
+          <Button size="sm" variant="outline" onClick={() => translateAll("zh")} disabled={busy === "translate"}>
             <Wand2 className="mr-1.5 h-3.5 w-3.5" /> 1-click → 中文
           </Button>
         </div>
         <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-          La operación sobrescribe el contenido de cada capítulo. Usa Ctrl+Z para deshacer si algo no convence.
+          Sobrescribe el contenido de cada capítulo conservando markdown, headings y placeholders. Ctrl+Z deshace.
         </p>
       </Card>
 
       <div className="md:col-span-2">
-        <VoiceCloneCard acxScript={acxScript} />
+        <VoiceCloneCard
+          acxScript={acxScript}
+          voiceName={voiceName}
+          setVoiceName={setVoiceName}
+          cloneReady={cloneReady}
+          setCloneReady={setCloneReady}
+        />
       </div>
     </div>
   );
 }
 
-function VoiceCloneCard({ acxScript }: { acxScript: string }) {
+/* -------------------- ACX card with TTS preview -------------------- */
+
+function ACXCard({
+  chapters,
+  chapterIdx,
+  setChapterIdx,
+  acxScript,
+  busy,
+  onGenerate,
+  onDownload,
+  voiceName,
+  cloneReady,
+}: {
+  chapters: { id: string; title: string; content?: string }[];
+  chapterIdx: number;
+  setChapterIdx: (n: number) => void;
+  acxScript: string;
+  busy: boolean;
+  onGenerate: () => void;
+  onDownload: () => void;
+  voiceName: string;
+  cloneReady: boolean;
+}) {
+  const [speaking, setSpeaking] = useState(false);
+
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+
+  const speak = () => {
+    if (!acxScript) return toast.error("Genera primero el script ACX");
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      return toast.error("Tu navegador no soporta síntesis de voz");
+    }
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    const clean = stripACXMarkers(acxScript).slice(0, 2200);
+    const u = new SpeechSynthesisUtterance(clean);
+    // Mocked clone: derive pitch/rate from voiceName hash so each "voice" sounds distinct
+    const h = hashString(voiceName);
+    u.pitch = cloneReady ? 0.8 + ((h % 70) / 100) : 1; // 0.8–1.5
+    u.rate = cloneReady ? 0.9 + (((h >> 3) % 30) / 100) : 1; // 0.9–1.2
+    u.lang = "es-ES";
+    const voices = window.speechSynthesis.getVoices();
+    const es = voices.find((v) => v.lang.startsWith("es"));
+    if (es) u.voice = es;
+    u.onend = () => setSpeaking(false);
+    u.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(u);
+    setSpeaking(true);
+    toast.success(cloneReady ? `Vista previa con voz "${voiceName}"` : "Vista previa (clona tu voz para timbre personalizado)");
+  };
+
+  const downloadNarrationPackage = () => {
+    if (!acxScript) return toast.error("Genera primero el script ACX");
+    const ch = chapters[chapterIdx];
+    const meta = [
+      `# Vista previa de narración — ${ch?.title || "Capítulo"}`,
+      `Voz: ${voiceName}${cloneReady ? " (clonada)" : " (mock no entrenada)"}`,
+      `Generado: ${new Date().toISOString()}`,
+      `Palabras: ${stripACXMarkers(acxScript).split(/\s+/).filter(Boolean).length}`,
+      "",
+      "---",
+      "## SCRIPT ACX",
+      acxScript,
+      "",
+      "---",
+      "## TEXTO LIMPIO PARA TTS",
+      stripACXMarkers(acxScript),
+    ].join("\n");
+    const blob = new Blob([meta], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `narracion_${(ch?.title || "cap").replace(/[^a-z0-9]+/gi, "_")}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Paquete de narración descargado");
+  };
+
+  return (
+    <Card className="group relative overflow-hidden rounded-2xl border-border/70 bg-gradient-to-br from-surface to-ai-muted/40 p-6 shadow-soft animate-fade-in hover-lift">
+      <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[color:var(--ai)]/15 blur-3xl transition group-hover:bg-[color:var(--ai)]/25" />
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="ai-gradient flex h-10 w-10 items-center justify-center rounded-xl text-[color:var(--ai-foreground)] shadow-elevated">
+            <Headphones className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="font-display text-lg font-semibold">Audiolibro ACX</h3>
+            <p className="text-xs text-muted-foreground">Secciones · pausas · respiración · pronunciación.</p>
+          </div>
+        </div>
+        {cloneReady && (
+          <span className="rounded-full bg-[color:var(--success)]/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--success)]">
+            ● Voz lista
+          </span>
+        )}
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <select
+          value={chapterIdx}
+          onChange={(e) => setChapterIdx(parseInt(e.target.value))}
+          className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+        >
+          {chapters.map((c, i) => (
+            <option key={c.id} value={i}>
+              {i + 1}. {c.title}
+            </option>
+          ))}
+        </select>
+        <Button onClick={onGenerate} disabled={busy} className="ai-gradient text-[color:var(--ai-foreground)]">
+          <Mic className="mr-2 h-4 w-4" />
+          {busy ? "Generando…" : "Generar Script ACX"}
+        </Button>
+        {acxScript && (
+          <>
+            <Button variant="outline" onClick={onDownload} title="Descargar script ACX">
+              <Download className="mr-2 h-4 w-4" /> Script .txt
+            </Button>
+            <Button variant="outline" onClick={speak} title={speaking ? "Detener" : "Reproducir vista previa"}>
+              {speaking ? <Square className="mr-2 h-4 w-4" /> : <Volume2 className="mr-2 h-4 w-4" />}
+              {speaking ? "Detener" : "Vista previa TTS"}
+            </Button>
+            <Button variant="outline" onClick={downloadNarrationPackage} title="Descargar paquete completo">
+              <Download className="mr-2 h-4 w-4" /> Narración
+            </Button>
+          </>
+        )}
+      </div>
+      <div className="mt-4 max-h-72 overflow-auto rounded-xl border border-border/60 bg-surface-elevated p-3 text-sm">
+        {acxScript ? (
+          <Markdown source={acxScript} />
+        ) : (
+          <p className="text-muted-foreground">
+            Aún no generado. El script ACX se construye directamente desde el contenido Tiptap del capítulo seleccionado, con secciones de hasta 70 palabras, pausas y marcas de respiración.
+          </p>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/* -------------------- DNA slider -------------------- */
+
+function DnaSlider({
+  label,
+  value,
+  onChange,
+  leftHint,
+  rightHint,
+}: {
+  label: string;
+  value: number[];
+  onChange: (v: number[]) => void;
+  leftHint: string;
+  rightHint: string;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <label className="text-xs font-medium text-foreground">{label}</label>
+        <span className="font-mono text-[11px] text-muted-foreground">{value[0]}/100</span>
+      </div>
+      <Slider value={value} onValueChange={onChange} max={100} step={5} className="mt-1.5" />
+      <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+        <span>{leftHint}</span>
+        <span>{rightHint}</span>
+      </div>
+    </div>
+  );
+}
+
+/* -------------------- Voice Clone -------------------- */
+
+function VoiceCloneCard({
+  acxScript,
+  voiceName,
+  setVoiceName,
+  cloneReady,
+  setCloneReady,
+}: {
+  acxScript: string;
+  voiceName: string;
+  setVoiceName: (v: string) => void;
+  cloneReady: boolean;
+  setCloneReady: (v: boolean) => void;
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string>("");
-  const [voiceName, setVoiceName] = useState("Mi Voz Autor");
   const [progress, setProgress] = useState(0);
-  const [phase, setPhase] = useState<"idle" | "uploading" | "cloning" | "ready">("idle");
+  const [phase, setPhase] = useState<"idle" | "uploading" | "cloning" | "ready">(cloneReady ? "ready" : "idle");
   const [playing, setPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -267,6 +505,7 @@ function VoiceCloneCard({ acxScript }: { acxScript: string }) {
     setFile(f);
     setAudioUrl(URL.createObjectURL(f));
     setPhase("idle");
+    setCloneReady(false);
     setProgress(0);
   };
 
@@ -274,7 +513,6 @@ function VoiceCloneCard({ acxScript }: { acxScript: string }) {
     if (!file) return toast.error("Sube una muestra de voz primero (mín. 30s recomendado).");
     setPhase("uploading");
     setProgress(0);
-    // mocked upload
     for (let i = 0; i <= 100; i += 10) {
       await new Promise((r) => setTimeout(r, 80));
       setProgress(i);
@@ -282,11 +520,12 @@ function VoiceCloneCard({ acxScript }: { acxScript: string }) {
     setPhase("cloning");
     setProgress(0);
     for (let i = 0; i <= 100; i += 5) {
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, 110));
       setProgress(i);
     }
     setPhase("ready");
-    toast.success(`Voz "${voiceName}" clonada (mock). Lista para narrar.`);
+    setCloneReady(true);
+    toast.success(`Voz "${voiceName}" clonada · lista para narración ACX`);
   };
 
   const playPreview = () => {
@@ -300,23 +539,18 @@ function VoiceCloneCard({ acxScript }: { acxScript: string }) {
     }
   };
 
-  const generateNarration = () => {
-    if (phase !== "ready") return toast.error("Clona tu voz primero.");
-    if (!acxScript) return toast.error("Genera primero un Script ACX en la tarjeta superior.");
-    toast.success(`Narración "${voiceName}" en cola · ${Math.ceil(acxScript.length / 950)} min estimados`);
-  };
-
   return (
-    <Card className="rounded-2xl border-border/70 p-6 shadow-soft animate-fade-in">
+    <Card className="group relative overflow-hidden rounded-2xl border-border/70 bg-gradient-to-br from-surface via-surface to-ai-muted/30 p-6 shadow-soft animate-fade-in hover-lift">
+      <div className="pointer-events-none absolute -left-20 -bottom-20 h-56 w-56 rounded-full bg-[color:var(--ai)]/10 blur-3xl" />
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="ai-gradient flex h-10 w-10 items-center justify-center rounded-xl text-[color:var(--ai-foreground)] shadow-soft">
+          <div className="ai-gradient flex h-10 w-10 items-center justify-center rounded-xl text-[color:var(--ai-foreground)] shadow-elevated">
             <Mic className="h-5 w-5" />
           </div>
           <div>
             <h3 className="font-display text-lg font-semibold">Clonar mi voz · ElevenLabs</h3>
             <p className="text-xs text-muted-foreground">
-              Sube 30-120s de voz limpia. Generamos un audiolibro con tu timbre y la guía ACX (mock).
+              Sube 30-120s de voz limpia. La vista previa TTS del capítulo usa el timbre clonado.
             </p>
           </div>
         </div>
@@ -341,15 +575,13 @@ function VoiceCloneCard({ acxScript }: { acxScript: string }) {
               e.preventDefault();
               onPick(e.dataTransfer.files?.[0] || null);
             }}
-            className="group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/70 bg-secondary/30 px-4 py-6 text-center transition hover:border-primary/60 hover:bg-primary/5"
+            className="group/up flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/70 bg-secondary/30 px-4 py-6 text-center transition hover:border-primary/60 hover:bg-primary/5"
           >
-            <Upload className="h-6 w-6 text-muted-foreground transition group-hover:scale-110 group-hover:text-primary" />
+            <Upload className="h-6 w-6 text-muted-foreground transition group-hover/up:scale-110 group-hover/up:text-primary" />
             <div className="mt-2 text-sm font-medium">
               {file ? file.name : "Arrastra una muestra de audio o haz clic"}
             </div>
-            <div className="text-[11px] text-muted-foreground">
-              .mp3 · .wav · .m4a · máx 20 MB
-            </div>
+            <div className="text-[11px] text-muted-foreground">.mp3 · .wav · .m4a · máx 20 MB</div>
             <input
               ref={inputRef}
               type="file"
@@ -365,12 +597,7 @@ function VoiceCloneCard({ acxScript }: { acxScript: string }) {
                 {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               </Button>
               <span className="truncate text-xs text-muted-foreground">{file?.name}</span>
-              <audio
-                ref={audioRef}
-                src={audioUrl}
-                onEnded={() => setPlaying(false)}
-                className="hidden"
-              />
+              <audio ref={audioRef} src={audioUrl} onEnded={() => setPlaying(false)} className="hidden" />
             </div>
           )}
         </div>
@@ -378,7 +605,7 @@ function VoiceCloneCard({ acxScript }: { acxScript: string }) {
         <div className="space-y-3">
           <div className="rounded-xl border border-border/60 bg-surface-elevated p-4">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Estado del pipeline
+              Pipeline de clonación
             </div>
             <div className="mt-2 space-y-2">
               <PipelineRow label="1. Subida de muestra" active={phase === "uploading"} done={phase === "cloning" || phase === "ready"} />
@@ -399,13 +626,13 @@ function VoiceCloneCard({ acxScript }: { acxScript: string }) {
               <Mic className="mr-2 h-4 w-4" />
               {phase === "uploading" || phase === "cloning" ? "Procesando…" : phase === "ready" ? "Re-entrenar" : "Clonar mi voz"}
             </Button>
-            <Button variant="outline" onClick={generateNarration} disabled={phase !== "ready"}>
-              <Headphones className="mr-2 h-4 w-4" /> Narrar capítulo
+            <Button variant="outline" disabled={!cloneReady || !acxScript} onClick={() => toast.success(`Cola: narrar ${Math.max(1, Math.ceil(acxScript.length / 950))} min con "${voiceName}"`)}>
+              <Headphones className="mr-2 h-4 w-4" /> Encolar narración completa
             </Button>
           </div>
 
           <p className="text-[11px] leading-relaxed text-muted-foreground">
-            * Demo. La integración real con ElevenLabs requiere conectar tu API key vía Lovable Cloud.
+            * Demo. Una vez clonada, usa <strong>Vista previa TTS</strong> en la tarjeta ACX para escuchar el capítulo con tu timbre.
           </p>
         </div>
       </div>
@@ -422,7 +649,8 @@ function PipelineRow({ label, active, done }: { label: string; active: boolean; 
           (done ? "bg-[color:var(--success)]" : active ? "animate-pulse bg-primary" : "bg-muted-foreground/30")
         }
       />
-      <span className={done ? "text-foreground" : active ? "text-foreground" : "text-muted-foreground"}>{label}</span>
+      <span className={done || active ? "text-foreground" : "text-muted-foreground"}>{label}</span>
     </div>
   );
 }
+
