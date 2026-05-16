@@ -775,16 +775,19 @@ import {
   HeadingLevel,
   AlignmentType,
   PageBreak,
+  LevelFormat,
 } from "docx";
 
 function parseRuns(text: string): TextRun[] {
   const tokens: TextRun[] = [];
-  const re = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  // Match **bold**, *italic*, or `code`
+  const re = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g;
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     if (m.index > last) tokens.push(new TextRun(text.slice(last, m.index)));
     if (m[0].startsWith("**")) tokens.push(new TextRun({ text: m[0].slice(2, -2), bold: true }));
+    else if (m[0].startsWith("`")) tokens.push(new TextRun({ text: m[0].slice(1, -1), font: "Consolas", size: 22 }));
     else tokens.push(new TextRun({ text: m[0].slice(1, -1), italics: true }));
     last = m.index + m[0].length;
   }
@@ -799,7 +802,7 @@ function mdToDocxParagraphs(md: string): Paragraph[] {
   const flush = () => {
     if (!buf.length) return;
     const text = buf.join(" ").trim();
-    if (text) out.push(new Paragraph({ children: parseRuns(text), spacing: { after: 200 } }));
+    if (text) out.push(new Paragraph({ children: parseRuns(text), spacing: { after: 200 }, alignment: AlignmentType.JUSTIFIED }));
     buf = [];
   };
   for (const raw of lines) {
@@ -816,7 +819,29 @@ function mdToDocxParagraphs(md: string): Paragraph[] {
       out.push(new Paragraph({ heading: HeadingLevel.TITLE, children: parseRuns(line.slice(2)) }));
     } else if (line.startsWith("> ")) {
       flush();
-      out.push(new Paragraph({ children: parseRuns(line.slice(2)), indent: { left: 720 }, spacing: { after: 200 } }));
+      out.push(new Paragraph({
+        children: parseRuns(line.slice(2)),
+        indent: { left: 720 },
+        spacing: { after: 200 },
+        border: { left: { style: "single", size: 12, color: "888888", space: 12 } },
+      }));
+    } else if (/^[-*]\s+/.test(line)) {
+      flush();
+      out.push(new Paragraph({
+        children: parseRuns(line.replace(/^[-*]\s+/, "")),
+        numbering: { reference: "om-bullets", level: 0 },
+        spacing: { after: 120 },
+      }));
+    } else if (/^\d+\.\s+/.test(line)) {
+      flush();
+      out.push(new Paragraph({
+        children: parseRuns(line.replace(/^\d+\.\s+/, "")),
+        numbering: { reference: "om-numbers", level: 0 },
+        spacing: { after: 120 },
+      }));
+    } else if (/^---+$/.test(line)) {
+      flush();
+      out.push(new Paragraph({ children: [new TextRun({ text: "✦ ✦ ✦", bold: true })], alignment: AlignmentType.CENTER, spacing: { before: 200, after: 200 } }));
     } else {
       buf.push(line);
     }
