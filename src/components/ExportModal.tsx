@@ -112,7 +112,7 @@ export function ExportModal({ open, onOpenChange }: Props) {
       const fn = kind === "pdf" ? exportPDF : kind === "epub" ? exportEPUB : exportDOCX;
       await fn(payload, (s) => setSteps(s), opts);
       setPhase("done");
-      toast.success(kind === "pdf" ? "PDF descargado" : "EPUB descargado");
+      toast.success(`${kind.toUpperCase()} descargado`);
     } catch (e: any) {
       if (e?.name === "AbortError") {
         toast("Exportación cancelada");
