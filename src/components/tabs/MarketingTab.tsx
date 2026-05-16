@@ -116,8 +116,19 @@ function AudiobookAndTranslate() {
     }
   };
 
-  const cloneVoice = () => {
-    toast("ElevenLabs Voice Clone — próximamente. Conecta tu API key en Cloud.");
+  const downloadACX = () => {
+    if (!acxScript) return;
+    const ch = chapters[chapterIdx];
+    const blob = new Blob([acxScript], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ACX_${(ch?.title || "capitulo").replace(/[^a-z0-9]+/gi, "_")}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    toast.success("Script ACX descargado");
   };
 
   const translateAll = async () => {
@@ -138,6 +149,11 @@ function AudiobookAndTranslate() {
     } finally {
       setBusy("");
     }
+  };
+
+  const translateQuick = async (target: "en" | "zh") => {
+    setLang(target);
+    await translateAll();
   };
 
   return (
@@ -168,12 +184,14 @@ function AudiobookAndTranslate() {
             <Mic className="mr-2 h-4 w-4" />
             {busy === "acx" ? "Generando…" : "Generar Script ACX"}
           </Button>
-          <Button variant="outline" onClick={cloneVoice}>
-            Clonar mi voz y Narrar (ElevenLabs)
-          </Button>
+          {acxScript && (
+            <Button variant="outline" onClick={downloadACX}>
+              <Download className="mr-2 h-4 w-4" /> Descargar .txt
+            </Button>
+          )}
         </div>
         <div className="mt-4 max-h-72 overflow-auto rounded-xl border border-border/60 bg-surface-elevated p-3 text-sm">
-          {acxScript ? <Markdown source={acxScript} /> : <p className="text-muted-foreground">Aún no generado.</p>}
+          {acxScript ? <Markdown source={acxScript} /> : <p className="text-muted-foreground">Aún no generado. El script se construye directamente desde el contenido Tiptap del capítulo seleccionado.</p>}
         </div>
       </Card>
 
