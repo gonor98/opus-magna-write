@@ -38,12 +38,12 @@ export async function parseManuscriptFile(file: File): Promise<ParsedManuscript>
 
   if (lower.endsWith(".docx")) {
     const buf = await file.arrayBuffer();
-    const result = await mammoth.convertToMarkdown({ arrayBuffer: buf });
-    const text = sanitize(result.value);
+    const result = await mammoth.convertToHtml({ arrayBuffer: buf });
+    const md = htmlToMarkdown(result.value);
     if (result.messages?.length) {
-      warnings.push(...result.messages.slice(0, 3).map((m) => m.message));
+      warnings.push(...result.messages.slice(0, 3).map((m: { message: string }) => m.message));
     }
-    return { name, text, words: wordCountOf(text), warnings };
+    return { name, text: sanitize(md), words: wordCountOf(md), warnings };
   }
 
   if (lower.endsWith(".html") || lower.endsWith(".htm")) {
