@@ -13,7 +13,28 @@ export type ParsedManuscript = {
 
 const wordCountOf = (s: string) => s.split(/\s+/).filter(Boolean).length;
 
-const sanitize = (s: string) =>
+const htmlToMarkdown = (html: string): string =>
+  html
+    .replace(/<h1[^>]*>/gi, "\n# ")
+    .replace(/<h2[^>]*>/gi, "\n## ")
+    .replace(/<h3[^>]*>/gi, "\n### ")
+    .replace(/<\/h[1-6]>/gi, "\n")
+    .replace(/<strong[^>]*>|<b>/gi, "**")
+    .replace(/<\/strong>|<\/b>/gi, "**")
+    .replace(/<em[^>]*>|<i>/gi, "*")
+    .replace(/<\/em>|<\/i>/gi, "*")
+    .replace(/<blockquote[^>]*>/gi, "\n> ")
+    .replace(/<\/blockquote>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "- ")
+    .replace(/<\/(p|li|div|tr)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"');
+
   s
     .replace(/\r\n?/g, "\n")
     .replace(/\u00a0/g, " ")
