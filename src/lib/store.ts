@@ -56,6 +56,41 @@ export type DesignConfig = {
   chapterTheme: "classic" | "modern" | "luxe";
 };
 
+export type AuditScores = {
+  voiceMatch: number;
+  aiLikelihood: number;
+  readability: number;
+  pacing: number;
+  originality: number;
+  bestsellerPotential: number;
+};
+
+export type AuditRecommendation = {
+  id: string;
+  title: string;
+  why: string;
+  action: "humanize" | "rewrite" | "expand" | "shorten" | "bestseller" | "fact-check";
+  targetSnippet?: string;
+  severity: "low" | "medium" | "high";
+  applied?: boolean;
+};
+
+export type AuditReport = {
+  scores: AuditScores;
+  verdict: string;
+  humanizationTips: string[];
+  recommendations: AuditRecommendation[];
+  generatedAt: string;
+};
+
+export type AssetRef = { path: string; signedUrl: string; name: string };
+
+export type Assets = {
+  backCover: string | null;       // dataURL preview
+  manuscripts: AssetRef[];        // uploaded manuscript files
+  acxScripts: Record<string, string>; // chapterId → ACX script (edited)
+};
+
 export type LaunchKit = { emails: string; social: string; trailer: string };
 
 type HistoryEntry = {
