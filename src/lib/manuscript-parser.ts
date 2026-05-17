@@ -35,6 +35,7 @@ const htmlToMarkdown = (html: string): string =>
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"');
 
+const sanitize = (s: string) =>
   s
     .replace(/\r\n?/g, "\n")
     .replace(/\u00a0/g, " ")
