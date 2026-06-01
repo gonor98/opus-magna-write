@@ -361,6 +361,17 @@ export const useBookStore = create<State>()(
 
       importProject: (data) => set({ ...get(), ...data, _past: [], _future: [] }),
       resetAll: () => set({ ...initial }),
+
+      setStep: (n) => set({ currentStep: Math.max(1, Math.min(6, n)) }),
+      markStepComplete: (n) =>
+        set((s) => ({
+          completedSteps: s.completedSteps.includes(n) ? s.completedSteps : [...s.completedSteps, n],
+        })),
+      setUserTier: (t) => set({ userTier: t }),
+      setBlueprints: (b) => set({ blueprints: b }),
+      selectBlueprint: (id) => set({ selectedBlueprintId: id }),
+      setPricingOpen: (b) => set({ pricingOpen: b }),
+
     }),
     {
       name: "opus-magna-studio-v1",
