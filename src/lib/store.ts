@@ -93,6 +93,28 @@ export type Assets = {
 
 export type LaunchKit = { emails: string; social: string; trailer: string };
 
+export type UserTier = "FREE" | "PRO" | "PUBLISHER" | "EMPIRE";
+
+export type Blueprint = {
+  id: string;
+  title: string;
+  subtitle: string;
+  synopsis: string;
+  niche: string;
+  demandBadge: "high" | "medium" | "niche";
+  kdpScore: number;
+  whyYou: string;
+};
+
+export const GOLDEN_PATH_STEPS = [
+  { id: 1, key: "ikigai", label: "Motor Ikigai", short: "Idea" },
+  { id: 2, key: "dna", label: "ADN del autor", short: "ADN" },
+  { id: 3, key: "matrix", label: "Bestseller Matrix", short: "Estructura" },
+  { id: 4, key: "editor", label: "Editor Tiptap", short: "Escribir" },
+  { id: 5, key: "design", label: "Diseño & Exportar", short: "Diseño" },
+  { id: 6, key: "launch", label: "Launch & Marketing", short: "Launch" },
+] as const;
+
 type HistoryEntry = {
   label: string;
   chapters: Chapter[];
@@ -101,6 +123,7 @@ type HistoryEntry = {
   publishingForm: PublishingForm;
   bookCover: string | null;
 };
+
 
 export type State = {
   authorDNA: AuthorDNA;
@@ -114,9 +137,18 @@ export type State = {
   launchKit: LaunchKit;
   bookCover: string | null;
 
+  // Golden Path & monetization
+  currentStep: number;
+  completedSteps: number[];
+  userTier: UserTier;
+  blueprints: Blueprint[];
+  selectedBlueprintId: string | null;
+  pricingOpen: boolean;
+
   // Undo/redo internals (not persisted)
   _past: HistoryEntry[];
   _future: HistoryEntry[];
+
 
   setAuthorDNA: (p: Partial<AuthorDNA>) => void;
   setStoryBible: (s: string) => void;
@@ -146,7 +178,15 @@ export type State = {
 
   importProject: (data: Partial<State>) => void;
   resetAll: () => void;
+
+  setStep: (n: number) => void;
+  markStepComplete: (n: number) => void;
+  setUserTier: (t: UserTier) => void;
+  setBlueprints: (b: Blueprint[]) => void;
+  selectBlueprint: (id: string) => void;
+  setPricingOpen: (b: boolean) => void;
 };
+
 
 const uuid = () =>
   "xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx".replace(/[xy]/g, (c) => {
@@ -187,9 +227,16 @@ const initial = {
   designConfig: { font: "Lora" as const, size: "10.5pt", lineHeight: "1.55", chapterTheme: "classic" as const },
   launchKit: { emails: "", social: "", trailer: "" },
   bookCover: null as string | null,
+  currentStep: 1,
+  completedSteps: [] as number[],
+  userTier: "FREE" as UserTier,
+  blueprints: [] as Blueprint[],
+  selectedBlueprintId: null as string | null,
+  pricingOpen: false,
   _past: [] as HistoryEntry[],
   _future: [] as HistoryEntry[],
 };
+
 
 export const useBookStore = create<State>()(
   persist(
@@ -314,6 +361,17 @@ export const useBookStore = create<State>()(
 
       importProject: (data) => set({ ...get(), ...data, _past: [], _future: [] }),
       resetAll: () => set({ ...initial }),
+
+      setStep: (n) => set({ currentStep: Math.max(1, Math.min(6, n)) }),
+      markStepComplete: (n) =>
+        set((s) => ({
+          completedSteps: s.completedSteps.includes(n) ? s.completedSteps : [...s.completedSteps, n],
+        })),
+      setUserTier: (t) => set({ userTier: t }),
+      setBlueprints: (b) => set({ blueprints: b }),
+      selectBlueprint: (id) => set({ selectedBlueprintId: id }),
+      setPricingOpen: (b) => set({ pricingOpen: b }),
+
     }),
     {
       name: "opus-magna-studio-v1",

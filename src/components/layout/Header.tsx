@@ -1,4 +1,4 @@
-import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles, FileDown, Undo2, Redo2, Cloud, CloudDownload, Loader2 } from "lucide-react";
+import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles, FileDown, Undo2, Redo2, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useBookStore, wordCount } from "@/lib/store";
@@ -190,9 +190,18 @@ export function Header({ focusMode, setFocusMode }: Props) {
           >
             <Save className="mr-1.5 h-4 w-4" /> Guardar
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => useBookStore.getState().setPricingOpen(true)}
+            className="gap-1.5 border-primary/30 text-primary hover:bg-primary/5"
+          >
+            <Crown className="h-3.5 w-3.5" /> Upgrade
+          </Button>
           <Button size="sm" variant="secondary" onClick={() => setFocusMode(!focusMode)}>
             {focusMode ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
+
         </div>
       </div>
       <ExportModal open={exportOpen} onOpenChange={setExportOpen} />
