@@ -35,7 +35,7 @@ export function IkigaiEngine() {
   const handleCV = async (file: File) => {
     try {
       const result = await parseManuscriptFile(file);
-      setCvText(result.markdown.slice(0, 4000));
+      setCvText(result.text.slice(0, 4000));
       toast.success(`CV cargado: ${file.name}`);
     } catch (e: any) {
       toast.error(e?.message || "No se pudo leer el CV");
