@@ -227,9 +227,16 @@ const initial = {
   designConfig: { font: "Lora" as const, size: "10.5pt", lineHeight: "1.55", chapterTheme: "classic" as const },
   launchKit: { emails: "", social: "", trailer: "" },
   bookCover: null as string | null,
+  currentStep: 1,
+  completedSteps: [] as number[],
+  userTier: "FREE" as UserTier,
+  blueprints: [] as Blueprint[],
+  selectedBlueprintId: null as string | null,
+  pricingOpen: false,
   _past: [] as HistoryEntry[],
   _future: [] as HistoryEntry[],
 };
+
 
 export const useBookStore = create<State>()(
   persist(
