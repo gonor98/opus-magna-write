@@ -432,3 +432,58 @@ export const aiImage = createServerFn({ method: "POST" })
     if (!url) throw new Error("No image returned by gateway.");
     return { dataUrl: url as string };
   });
+
+/* ---------- Ikigai Blueprints (Step 1) ---------- */
+export const aiGenerateBlueprints = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      passion: z.string().min(10),
+      cvText: z.string().optional(),
+      audioTranscript: z.string().optional(),
+      publicPresence: z.string().optional(),
+    }).parse,
+  )
+  .handler(async ({ data }) => {
+    const gateway = getGateway();
+    const { object } = await generateObject({
+      model: gateway(DEFAULT_TEXT_MODEL),
+      schema: z.object({
+        blueprints: z
+          .array(
+            z.object({
+              id: z.string(),
+              title: z.string(),
+              subtitle: z.string(),
+              synopsis: z.string(),
+              niche: z.string(),
+              demandBadge: z.enum(["high", "medium", "niche"]),
+              kdpScore: z.number().min(0).max(100),
+              whyYou: z.string(),
+            }),
+          )
+          .min(3)
+          .max(5),
+      }),
+      prompt: `Eres el Motor Ikigai Literario de Opus Magna. Cruza el perfil del autor con la demanda del algoritmo A9 de Amazon KDP.
+
+PERFIL DEL AUTOR:
+Pasión/Profesión: ${data.passion}
+${data.cvText ? `CV/Portafolio: ${data.cvText.slice(0, 1500)}` : ""}
+${data.audioTranscript ? `Audio (transcripción): ${data.audioTranscript.slice(0, 800)}` : ""}
+${data.publicPresence ? `Presencia pública: ${data.publicPresence.slice(0, 600)}` : ""}
+
+TAREA: Genera 3 "Blueprints de Bestseller" personalizados. Cada uno DEBE:
+- title: magnético, 4-8 palabras, evita clichés.
+- subtitle: promesa comercial específica con número o resultado.
+- synopsis: 2-3 frases en neuromarketing (dolor → solución → transformación).
+- niche: subcategoría exacta de Amazon KDP (ej. "Self-Help > Personal Transformation").
+- demandBadge: "high" si compite con bestsellers actuales, "medium" si nicho saturado, "niche" si océano azul.
+- kdpScore: 0-100, viabilidad comercial real (no infles).
+- whyYou: 1 frase que justifique por qué ESTE autor es la máxima autoridad.
+- id: slug corto único (kebab-case).
+
+Sé brutalmente honesto. No generes ideas genéricas.`,
+    });
+    return object;
+  });
+
