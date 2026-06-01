@@ -178,7 +178,15 @@ export type State = {
 
   importProject: (data: Partial<State>) => void;
   resetAll: () => void;
+
+  setStep: (n: number) => void;
+  markStepComplete: (n: number) => void;
+  setUserTier: (t: UserTier) => void;
+  setBlueprints: (b: Blueprint[]) => void;
+  selectBlueprint: (id: string) => void;
+  setPricingOpen: (b: boolean) => void;
 };
+
 
 const uuid = () =>
   "xxxxxxxxxxxx4xxxyxxxxxxxxxxxxxxx".replace(/[xy]/g, (c) => {
