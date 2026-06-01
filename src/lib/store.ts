@@ -93,6 +93,28 @@ export type Assets = {
 
 export type LaunchKit = { emails: string; social: string; trailer: string };
 
+export type UserTier = "FREE" | "PRO" | "PUBLISHER" | "EMPIRE";
+
+export type Blueprint = {
+  id: string;
+  title: string;
+  subtitle: string;
+  synopsis: string;
+  niche: string;
+  demandBadge: "high" | "medium" | "niche";
+  kdpScore: number;
+  whyYou: string;
+};
+
+export const GOLDEN_PATH_STEPS = [
+  { id: 1, key: "ikigai", label: "Motor Ikigai", short: "Idea" },
+  { id: 2, key: "dna", label: "ADN del autor", short: "ADN" },
+  { id: 3, key: "matrix", label: "Bestseller Matrix", short: "Estructura" },
+  { id: 4, key: "editor", label: "Editor Tiptap", short: "Escribir" },
+  { id: 5, key: "design", label: "Diseño & Exportar", short: "Diseño" },
+  { id: 6, key: "launch", label: "Launch & Marketing", short: "Launch" },
+] as const;
+
 type HistoryEntry = {
   label: string;
   chapters: Chapter[];
@@ -101,6 +123,7 @@ type HistoryEntry = {
   publishingForm: PublishingForm;
   bookCover: string | null;
 };
+
 
 export type State = {
   authorDNA: AuthorDNA;
