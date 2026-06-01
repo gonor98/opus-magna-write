@@ -4,121 +4,125 @@ import { maybeSeedDemo } from "@/lib/demo";
 import { useBookStore } from "@/lib/store";
 import { toast } from "sonner";
 import { Header } from "@/components/layout/Header";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GoldenPathStepper } from "@/components/layout/GoldenPathStepper";
+import { PricingModal } from "@/components/PricingModal";
+import { IkigaiEngine } from "@/components/steps/IkigaiEngine";
 import { AuthorDNATab } from "@/components/tabs/AuthorDNATab";
 import { ManuscriptTab } from "@/components/tabs/ManuscriptTab";
 import { MatterTab } from "@/components/tabs/MatterTab";
 import { DesignTab } from "@/components/tabs/DesignTab";
 import { MarketingTab } from "@/components/tabs/MarketingTab";
-import { User, ScrollText, BookOpen, Palette, Megaphone } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 
 export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Opus Magna Studio — The Ikigai Empire" },
+      { name: "description", content: "Sindicato editorial autónomo: del Ikigai al bestseller en 6 pasos." },
+    ],
+  }),
   component: Studio,
 });
 
 function Studio() {
-  const [tab, setTab] = useState("dna");
   const [focus, setFocus] = useState(false);
+  const currentStep = useBookStore((s) => s.currentStep);
+  const setStep = useBookStore((s) => s.setStep);
+  const completed = useBookStore((s) => s.completedSteps);
+  const markStepComplete = useBookStore((s) => s.markStepComplete);
 
   useEffect(() => {
     maybeSeedDemo();
   }, []);
 
-  // Global undo/redo shortcuts (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const meta = e.ctrlKey || e.metaKey;
       if (!meta || e.key.toLowerCase() !== "z") return;
       const target = e.target as HTMLElement | null;
-      // Don't hijack within text inputs/editors — let native undo work
       if (
         target &&
         (target.tagName === "INPUT" ||
           target.tagName === "TEXTAREA" ||
           target.isContentEditable)
-      ) {
+      )
         return;
-      }
       e.preventDefault();
       const store = useBookStore.getState();
       if (e.shiftKey) {
         const label = store.redo();
         if (label) toast.success(`↻ Rehecho: ${label}`);
-        else toast("Nada que rehacer");
       } else {
         const label = store.undo();
         if (label) toast.success(`↶ Deshecho: ${label}`);
-        else toast("Nada que deshacer");
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const goNext = () => {
+    if (!completed.includes(currentStep)) markStepComplete(currentStep);
+    setStep(currentStep + 1);
+  };
+  const goPrev = () => setStep(currentStep - 1);
+
   return (
     <div className="min-h-screen bg-background">
       {!focus && <Header focusMode={focus} setFocusMode={setFocus} />}
+      {!focus && <GoldenPathStepper />}
 
       <main className={"mx-auto px-6 py-8 " + (focus ? "max-w-4xl" : "max-w-[1400px]")}>
-        {!focus && (
-          <section className="mb-8 animate-fade-in">
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-              <span className="h-1 w-6 rounded-full bg-primary" /> Bestseller workspace
-            </div>
-            <h1 className="mt-3 font-display text-4xl font-bold tracking-tight md:text-5xl">
-              Diseña, escribe y publica tu próximo{" "}
-              <span className="bg-gradient-to-r from-primary to-[color:var(--ai)] bg-clip-text text-transparent">
-                bestseller
-              </span>{" "}
-              con IA.
-            </h1>
-            <p className="mt-3 max-w-2xl text-base text-muted-foreground">
-              Un estudio enterprise inspirado en Notion, Stripe y Vellum. Cada pestaña es una fase del proceso editorial,
-              orquestada por Lovable AI.
-            </p>
-          </section>
+        {currentStep === 1 && <IkigaiEngine />}
+        {currentStep === 2 && <StepShell title="ADN del autor" subtitle="Paso 2 · Clonación de identidad multimodal"><AuthorDNATab /></StepShell>}
+        {currentStep === 3 && <StepShell title="Bestseller Matrix" subtitle="Paso 3 · Estructura de alta retención"><ManuscriptTab /></StepShell>}
+        {currentStep === 4 && <StepShell title="Editor Tiptap" subtitle="Paso 4 · Co-creación interactiva"><ManuscriptTab /></StepShell>}
+        {currentStep === 5 && <StepShell title="Diseño & Exportar" subtitle="Paso 5 · Portada + KDP-ready"><DesignTab /><MatterTab /></StepShell>}
+        {currentStep === 6 && <StepShell title="Launch & Marketing" subtitle="Paso 6 · Audiolibro, traducción, distribución"><MarketingTab /></StepShell>}
+
+        {!focus && currentStep > 1 && (
+          <div className="mx-auto mt-10 flex max-w-3xl items-center justify-between border-t border-border/60 pt-6">
+            <Button variant="outline" onClick={goPrev}>
+              <ArrowLeft className="mr-1.5 h-4 w-4" /> Paso anterior
+            </Button>
+            {currentStep < 6 && (
+              <Button onClick={goNext} className="primary-gradient text-primary-foreground shadow-soft">
+                Siguiente paso <ArrowRight className="ml-1.5 h-4 w-4" />
+              </Button>
+            )}
+            {currentStep === 6 && (
+              <Button onClick={() => markStepComplete(6)} className="primary-gradient text-primary-foreground shadow-soft">
+                ✨ Lanzar bestseller
+              </Button>
+            )}
+          </div>
         )}
-
-        <Tabs value={focus ? "manuscript" : tab} onValueChange={setTab}>
-          {!focus && (
-            <TabsList className="mb-6 h-auto w-full justify-start gap-1 rounded-2xl border border-border/70 bg-surface p-1.5 shadow-soft">
-              <TabTrigger value="dna" icon={<User className="h-4 w-4" />} label="ADN del autor" />
-              <TabTrigger value="manuscript" icon={<ScrollText className="h-4 w-4" />} label="Manuscrito" />
-              <TabTrigger value="matter" icon={<BookOpen className="h-4 w-4" />} label="Front / Back matter" />
-              <TabTrigger value="design" icon={<Palette className="h-4 w-4" />} label="Diseño & portada" />
-              <TabTrigger value="marketing" icon={<Megaphone className="h-4 w-4" />} label="Marketing" />
-            </TabsList>
-          )}
-
-          <TabsContent value="dna" className="animate-fade-in">
-            <AuthorDNATab />
-          </TabsContent>
-          <TabsContent value="manuscript" className="animate-fade-in">
-            <ManuscriptTab />
-          </TabsContent>
-          <TabsContent value="matter" className="animate-fade-in">
-            <MatterTab />
-          </TabsContent>
-          <TabsContent value="design" className="animate-fade-in">
-            <DesignTab />
-          </TabsContent>
-          <TabsContent value="marketing" className="animate-fade-in">
-            <MarketingTab />
-          </TabsContent>
-        </Tabs>
       </main>
+
+      <PricingModal />
     </div>
   );
 }
 
-function TabTrigger({ value, icon, label }: { value: string; icon: React.ReactNode; label: string }) {
+function StepShell({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  children: React.ReactNode;
+}) {
   return (
-    <TabsTrigger
-      value={value}
-      className="gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-muted-foreground transition data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-soft"
-    >
-      {icon}
-      <span className="hidden sm:inline">{label}</span>
-    </TabsTrigger>
+    <div className="animate-fade-in">
+      <div className="mb-6">
+        <div className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          {subtitle}
+        </div>
+        <h1 className="mt-1 font-display text-3xl font-bold tracking-tight md:text-4xl">{title}</h1>
+      </div>
+      <div className="space-y-6">{children}</div>
+    </div>
   );
 }

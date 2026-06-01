@@ -1,4 +1,4 @@
-import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles, FileDown, Undo2, Redo2, Cloud, CloudDownload, Loader2 } from "lucide-react";
+import { BookOpen, Save, Download, Upload, Maximize2, Minimize2, Sparkles, FileDown, Undo2, Redo2, Crown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useBookStore, wordCount } from "@/lib/store";
