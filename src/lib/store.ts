@@ -137,9 +137,18 @@ export type State = {
   launchKit: LaunchKit;
   bookCover: string | null;
 
+  // Golden Path & monetization
+  currentStep: number;
+  completedSteps: number[];
+  userTier: UserTier;
+  blueprints: Blueprint[];
+  selectedBlueprintId: string | null;
+  pricingOpen: boolean;
+
   // Undo/redo internals (not persisted)
   _past: HistoryEntry[];
   _future: HistoryEntry[];
+
 
   setAuthorDNA: (p: Partial<AuthorDNA>) => void;
   setStoryBible: (s: string) => void;
