@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore, type Blueprint } from "@/lib/store";
 import { aiGenerateBlueprints } from "@/lib/ai.functions";
-import { parseManuscript } from "@/lib/manuscript-parser";
+import { parseManuscriptFile } from "@/lib/manuscript-parser";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -34,7 +34,7 @@ export function IkigaiEngine() {
 
   const handleCV = async (file: File) => {
     try {
-      const result = await parseManuscript(file);
+      const result = await parseManuscriptFile(file);
       setCvText(result.markdown.slice(0, 4000));
       toast.success(`CV cargado: ${file.name}`);
     } catch (e: any) {
