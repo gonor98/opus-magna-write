@@ -487,3 +487,136 @@ Sé brutalmente honesto. No generes ideas genéricas.`,
     return object;
   });
 
+/* ---------- Digital Footprint (deep author research) ---------- */
+export const aiDigitalFootprint = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      name: z.string().min(2),
+      links: z.array(z.string().url()).max(8).optional(),
+      context: z.string().max(2000).optional(),
+    }).parse,
+  )
+  .handler(async ({ data }) => {
+    const gateway = getGateway();
+    const { object } = await generateObject({
+      model: gateway(DEFAULT_TEXT_MODEL),
+      schema: z.object({
+        bio: z.string(),
+        mission: z.string(),
+        voiceSamples: z.string(),
+        arquetipo: z.string(),
+        vocabulario: z.array(z.string()).max(20),
+        catchphrases: z.array(z.string()).max(10),
+        platforms: z
+          .array(z.object({ name: z.string(), url: z.string().optional(), insight: z.string() }))
+          .max(8),
+        themes: z.array(z.string()).max(10),
+        confidenceScore: z.number().min(0).max(100),
+      }),
+      prompt: `Actúa como Investigador OSINT senior + Editor Jefe literario. Reconstruye la HUELLA DIGITAL de "${data.name}" para clonar su voz autoral.
+${data.links?.length ? `Enlaces/perfiles: ${data.links.join(", ")}` : ""}
+${data.context ? `Contexto extra: ${data.context}` : ""}
+
+Devuelve dossier JSON con bio (5-7 frases), mission, voiceSamples (4-6 citas representativas), arquetipo narrativo, vocabulario (10-15 palabras recurrentes), catchphrases, platforms (LinkedIn/YouTube/X/blog/podcasts con insight), themes (5-8 obsesiones), confidenceScore 0-100.
+Si el nombre es ambiguo o desconocido, baja confidenceScore y explícalo en bio. Sé brutalmente honesto, nada genérico.`,
+    });
+    return object;
+  });
+
+/* ---------- Deep Scraping: market + competition signals ---------- */
+export const aiDeepScrape = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      title: z.string().min(2),
+      subtitle: z.string().optional(),
+      niche: z.string().min(2),
+      synopsis: z.string().optional(),
+    }).parse,
+  )
+  .handler(async ({ data }) => {
+    const gateway = getGateway();
+    const { object } = await generateObject({
+      model: gateway(DEFAULT_TEXT_MODEL),
+      schema: z.object({
+        demandIndex: z.number().min(0).max(100),
+        competitionIndex: z.number().min(0).max(100),
+        priceSweetSpot: z.object({ digital: z.number(), physical: z.number() }),
+        bsrEstimate: z.string(),
+        keywords: z.array(z.string()).min(5).max(15),
+        bisac: z.array(z.string()).min(2).max(5),
+        competitors: z
+          .array(
+            z.object({
+              title: z.string(),
+              author: z.string(),
+              reviewsApprox: z.number(),
+              positioning: z.string(),
+              gap: z.string(),
+            }),
+          )
+          .min(3)
+          .max(6),
+        positioning: z.string(),
+        hook: z.string(),
+        risks: z.array(z.string()).max(5),
+      }),
+      prompt: `Actúa como Head of Research de Publisher Rocket + Helium 10 para Amazon KDP.
+Investiga el mercado para:
+Título: "${data.title}"
+Subtítulo: "${data.subtitle || ""}"
+Nicho: "${data.niche}"
+Sinopsis: ${data.synopsis?.slice(0, 600) || "(n/a)"}
+
+Devuelve reporte JSON realista con demandIndex/competitionIndex (0-100), priceSweetSpot {digital,physical} en USD, bsrEstimate (rango BSR mes 3), 8-12 keywords long-tail A9, rutas BISAC reales, 4-6 competidores (título, autor, ~reseñas, posicionamiento, GAP que dejan), positioning diferencial, hook de portada 6-10 palabras, 2-4 risks.
+Sé específico. Nada genérico.`,
+    });
+    return object;
+  });
+
+/* ---------- Cover Engine: 4 variantes + back cover ---------- */
+export const aiCoverPromptPack = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      title: z.string().min(1),
+      subtitle: z.string().optional(),
+      author: z.string().optional(),
+      niche: z.string().optional(),
+      mood: z.string().optional(),
+    }).parse,
+  )
+  .handler(async ({ data }) => {
+    const gateway = getGateway();
+    const { object } = await generateObject({
+      model: gateway(DEFAULT_TEXT_MODEL),
+      schema: z.object({
+        variants: z
+          .array(
+            z.object({
+              style: z.string(),
+              prompt: z.string(),
+              palette: z.array(z.string()).min(3).max(6),
+            }),
+          )
+          .length(4),
+        backCoverPrompt: z.string(),
+      }),
+      prompt: `Eres Director de Arte de Penguin/Stripe Press. Diseña 4 variantes de portada y un fondo de contraportada para:
+Título: "${data.title}"
+Subtítulo: "${data.subtitle || ""}"
+Autor: "${data.author || ""}"
+Nicho: "${data.niche || ""}"
+Mood: "${data.mood || "premium internacional bestseller"}"
+
+4 estilos DIFERENCIADOS:
+1) "Minimalista editorial" — Stripe Press, tipografía dominante.
+2) "Fotográfico cinemático" — imagen evocadora full-bleed.
+3) "Abstracto simbólico" — gradiente/forma como metáfora.
+4) "Tipográfico de impacto" — lettering grande tipo Penguin Modern.
+
+Para cada uno: prompt detallado para imagen 3:4 (composición, paleta, textura, iluminación, tipografía). NO incluyas el texto del título en la imagen, el título se sobrepone después. Paleta en hex.
+backCoverPrompt: fondo abstracto/textura sutil para contraportada que combine con los 4.`,
+    });
+    return object;
+  });
+
+
