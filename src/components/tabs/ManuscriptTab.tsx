@@ -36,6 +36,7 @@ import {
   Grid3X3,
 } from "lucide-react";
 import { toast } from "sonner";
+import { requireFeature } from "@/lib/tier";
 import { Markdown } from "@/components/Markdown";
 import { TiptapEditor } from "@/components/TiptapEditor";
 import {
@@ -199,6 +200,7 @@ export function ManuscriptTab({ forceView }: { forceView?: "corkboard" | "editor
   const runBeta = async () => {
     if (!active) return;
     if ((active.content || "").length < 100) return toast.error("Escribe más antes de pedir crítica");
+    if (!requireFeature("audit", "Crítica del Editor Senior")) return;
     setBusy("beta");
     try {
       const { text } = await betaFn({ data: { content: active.content } });
@@ -212,6 +214,7 @@ export function ManuscriptTab({ forceView }: { forceView?: "corkboard" | "editor
 
   const runFact = async () => {
     if (!active || !active.content) return;
+    if (!requireFeature("audit", "Fact-check IA")) return;
     setBusy("fact");
     try {
       const { text } = await factFn({ data: { content: active.content } });
@@ -225,6 +228,7 @@ export function ManuscriptTab({ forceView }: { forceView?: "corkboard" | "editor
 
   const generateInlineImage = async () => {
     if (!active || !imagePrompt.trim()) return;
+    if (!requireFeature("cover.generate", "Generar ilustración con IA")) return;
     setBusy("image");
     try {
       const { dataUrl } = await imageFn({
