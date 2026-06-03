@@ -160,41 +160,61 @@ Devuelve JSON puro con estas claves exactas:
   const digitalRoyalty = publishingForm.priceDigital * 0.7;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
-      <Card className="rounded-2xl border-border/70 p-6 shadow-soft">
-        <h3 className="font-display text-lg font-semibold">Portada IA</h3>
-        <p className="text-sm text-muted-foreground">Diseño editorial generado por Lovable AI.</p>
-        <div className="relative mt-4 aspect-[3/4] overflow-hidden rounded-xl border border-border bg-secondary/40">
-          {bookCover ? (
-            <img src={bookCover} alt="Portada" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-              <ImageIcon className="h-12 w-12" />
+    <div className="space-y-6">
+      <MarketSignals />
+      <CoverEngine />
+
+      <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
+        <div className="space-y-6">
+          <Card className="rounded-2xl border-border/70 p-6 shadow-soft">
+            <h3 className="font-display text-lg font-semibold">Portada principal</h3>
+            <p className="text-sm text-muted-foreground">Quick-gen rápido (usa Cover Engine arriba para 4 variantes).</p>
+            <div className="relative mt-4 aspect-[3/4] overflow-hidden rounded-xl border border-border bg-secondary/40">
+              {bookCover ? (
+                <img src={bookCover} alt="Portada" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                  <ImageIcon className="h-12 w-12" />
+                </div>
+              )}
+              {barcodeUrl && (
+                <div className="absolute bottom-2 right-2 rounded bg-white p-1 shadow-elevated ring-1 ring-black/10">
+                  <img src={barcodeUrl} alt="EAN-13" className="h-10 w-auto" />
+                </div>
+              )}
             </div>
-          )}
-          {/* Simulated back-cover EAN-13 placement (lower-right corner of cover spread) */}
-          {barcodeUrl && (
-            <div className="absolute bottom-2 right-2 rounded bg-white p-1 shadow-elevated ring-1 ring-black/10">
-              <img src={barcodeUrl} alt="EAN-13" className="h-10 w-auto" />
+            <div className="mt-4 flex gap-2">
+              <Button onClick={generateCover} disabled={busy === "cover"} className="ai-gradient flex-1 text-[color:var(--ai-foreground)]">
+                <ImageIcon className="mr-2 h-4 w-4" />
+                {busy === "cover" ? "Renderizando…" : bookCover ? "Regenerar" : "Generar portada"}
+              </Button>
+              {bookCover && (
+                <Button variant="outline" onClick={downloadCover}><Download className="h-4 w-4" /></Button>
+              )}
             </div>
-          )}
-        </div>
-        <div className="mt-4 flex gap-2">
-          <Button
-            onClick={generateCover}
-            disabled={busy === "cover"}
-            className="ai-gradient flex-1 text-[color:var(--ai-foreground)]"
-          >
-            <ImageIcon className="mr-2 h-4 w-4" />
-            {busy === "cover" ? "Renderizando…" : bookCover ? "Regenerar" : "Generar portada"}
-          </Button>
-          {bookCover && (
-            <Button variant="outline" onClick={downloadCover}>
-              <Download className="h-4 w-4" />
+          </Card>
+
+          <Card className="rounded-2xl border-border/70 p-6 shadow-soft">
+            <div className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-primary" />
+              <h3 className="font-display text-lg font-semibold">Foto del autor · 4K</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">Retrato editorial profesional para contraportada y prensa.</p>
+            <div className="relative mt-4 aspect-[3/4] overflow-hidden rounded-xl border border-border bg-secondary/40">
+              {authorPhoto ? (
+                <img src={authorPhoto} alt="Autor" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                  <User className="h-12 w-12" />
+                </div>
+              )}
+            </div>
+            <Button onClick={generateAuthorPhoto} disabled={busy === "avatar"} className="mt-4 w-full primary-gradient text-primary-foreground">
+              {busy === "avatar" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}
+              {authorPhoto ? "Regenerar retrato" : "Generar retrato 4K"}
             </Button>
-          )}
+          </Card>
         </div>
-      </Card>
 
       <div className="space-y-6">
         <Card className="rounded-2xl border-border/70 p-6 shadow-soft">
