@@ -24,7 +24,6 @@ const PHASES = [
 
 export function AutoPilot({ chapterCount = 10 }: { chapterCount?: number }) {
   const state = useBookStore();
-  const set = useBookStore.setState;
   const footprintFn = useServerFn(aiDigitalFootprint);
   const personaFn = useServerFn(aiPersona);
   const structureFn = useServerFn(aiStructure);
