@@ -57,7 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export function ManuscriptTab() {
+export function ManuscriptTab({ forceView }: { forceView?: "corkboard" | "editor" } = {}) {
   const {
     bookContext,
     setBookContext,
@@ -77,7 +77,8 @@ export function ManuscriptTab() {
   } = useBookStore();
 
   const [chapterCount, setChapterCount] = useState(8);
-  const [view, setView] = useState<"corkboard" | "editor">("corkboard");
+  const [viewState, setView] = useState<"corkboard" | "editor">(forceView || "corkboard");
+  const view = forceView || viewState;
   const [busy, setBusy] = useState<string>("");
   const [titleModal, setTitleModal] = useState<
     null | { suggestions: { title: string; subtitle: string; psychology: string }[] }
