@@ -93,6 +93,32 @@ export type Assets = {
 
 export type LaunchKit = { emails: string; social: string; trailer: string };
 
+export type MarketSignals = {
+  demandIndex: number;
+  competitionIndex: number;
+  priceSweetSpot: { digital: number; physical: number };
+  bsrEstimate: string;
+  keywords: string[];
+  bisac: string[];
+  competitors: { title: string; author: string; reviewsApprox: number; positioning: string; gap: string }[];
+  positioning: string;
+  hook: string;
+  risks: string[];
+  generatedAt: string;
+} | null;
+
+export type AutoPilotPhase =
+  | "idle" | "dna" | "structure" | "writing"
+  | "metadata" | "cover" | "marketing" | "done" | "error";
+
+export type AutoPilotStatus = {
+  phase: AutoPilotPhase;
+  message: string;
+  progress: number;
+  chapterIndex?: number;
+  chapterTotal?: number;
+};
+
 export type UserTier = "FREE" | "PRO" | "PUBLISHER" | "EMPIRE";
 
 export type Blueprint = {
@@ -144,6 +170,9 @@ export type State = {
   blueprints: Blueprint[];
   selectedBlueprintId: string | null;
   pricingOpen: boolean;
+  marketSignals: MarketSignals;
+  autoPilot: AutoPilotStatus;
+  authorPhoto: string | null;
 
   // Undo/redo internals (not persisted)
   _past: HistoryEntry[];
@@ -185,6 +214,9 @@ export type State = {
   setBlueprints: (b: Blueprint[]) => void;
   selectBlueprint: (id: string) => void;
   setPricingOpen: (b: boolean) => void;
+  setMarketSignals: (m: MarketSignals) => void;
+  setAutoPilot: (s: Partial<AutoPilotStatus>) => void;
+  setAuthorPhoto: (url: string | null) => void;
 };
 
 
@@ -233,6 +265,9 @@ const initial = {
   blueprints: [] as Blueprint[],
   selectedBlueprintId: null as string | null,
   pricingOpen: false,
+  marketSignals: null as MarketSignals,
+  autoPilot: { phase: "idle" as AutoPilotPhase, message: "", progress: 0 } as AutoPilotStatus,
+  authorPhoto: null as string | null,
   _past: [] as HistoryEntry[],
   _future: [] as HistoryEntry[],
 };
@@ -371,6 +406,9 @@ export const useBookStore = create<State>()(
       setBlueprints: (b) => set({ blueprints: b }),
       selectBlueprint: (id) => set({ selectedBlueprintId: id }),
       setPricingOpen: (b) => set({ pricingOpen: b }),
+      setMarketSignals: (m) => set({ marketSignals: m }),
+      setAutoPilot: (s) => set((st) => ({ autoPilot: { ...st.autoPilot, ...s } })),
+      setAuthorPhoto: (url) => set({ authorPhoto: url }),
 
     }),
     {
