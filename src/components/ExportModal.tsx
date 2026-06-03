@@ -37,7 +37,10 @@ import {
   ChevronRight,
   X,
   RotateCcw,
+  Lock,
 } from "lucide-react";
+import { requireFeature, canUse, tierLabel, featureTier, type Feature } from "@/lib/tier";
+import { Badge } from "@/components/ui/badge";
 
 type Props = { open: boolean; onOpenChange: (o: boolean) => void };
 
@@ -92,11 +95,14 @@ export function ExportModal({ open, onOpenChange }: Props) {
     onOpenChange(o);
   };
 
+  const FEATURE_MAP: Record<Kind, Feature> = { pdf: "export.pdf", docx: "export.docx", epub: "export.epub" };
+
   const choose = (k: Kind) => {
     if (!state.chapters.length) {
       toast.error("Genera la estructura y redacta al menos un capítulo");
       return;
     }
+    if (!requireFeature(FEATURE_MAP[k], `Exportar ${k.toUpperCase()}`)) return;
     setKind(k);
     setPhase("preview");
   };
@@ -162,6 +168,8 @@ export function ExportModal({ open, onOpenChange }: Props) {
                 desc="Formato A5 con portada, tipografía serif y front/back matter."
                 onClick={() => choose("pdf")}
                 cta="Previsualizar PDF"
+                locked={!canUse("export.pdf")}
+                tier={tierLabel[featureTier("export.pdf")]}
               />
               <FormatCard
                 icon={<BookMarked className="h-5 w-5" />}
@@ -170,6 +178,8 @@ export function ExportModal({ open, onOpenChange }: Props) {
                 onClick={() => choose("epub")}
                 cta="Previsualizar EPUB"
                 accent
+                locked={!canUse("export.epub")}
+                tier={tierLabel[featureTier("export.epub")]}
               />
               <FormatCard
                 icon={<FileType2 className="h-5 w-5" />}
@@ -177,6 +187,8 @@ export function ExportModal({ open, onOpenChange }: Props) {
                 desc="Listo para editoriales tradicionales. Estilos H1/H2 nativos."
                 onClick={() => choose("docx")}
                 cta="Previsualizar DOCX"
+                locked={!canUse("export.docx")}
+                tier={tierLabel[featureTier("export.docx")]}
               />
             </div>
 
@@ -429,6 +441,8 @@ function FormatCard({
   onClick,
   cta,
   accent,
+  locked,
+  tier,
 }: {
   icon: React.ReactNode;
   title: string;
@@ -436,9 +450,16 @@ function FormatCard({
   onClick: () => void;
   cta: string;
   accent?: boolean;
+  locked?: boolean;
+  tier?: string;
 }) {
   return (
-    <div className="group flex flex-col rounded-2xl border border-border/70 bg-surface p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-elevated">
+    <div className={"group relative flex flex-col rounded-2xl border border-border/70 bg-surface p-5 shadow-soft transition hover:-translate-y-0.5 hover:shadow-elevated " + (locked ? "opacity-90" : "")}>
+      {locked && (
+        <Badge className="absolute right-3 top-3 gap-1 bg-amber-500/15 text-amber-700 border-amber-400/40" variant="outline">
+          <Lock className="h-3 w-3" /> {tier}
+        </Badge>
+      )}
       <div
         className={
           "flex h-10 w-10 items-center justify-center rounded-xl text-primary-foreground transition group-hover:scale-105 " +
@@ -451,13 +472,16 @@ function FormatCard({
       <p className="mt-1 flex-1 text-sm text-muted-foreground">{desc}</p>
       <Button
         onClick={onClick}
+        variant={locked ? "outline" : "default"}
         className={
           "mt-4 " +
-          (accent ? "ai-gradient text-[color:var(--ai-foreground)]" : "primary-gradient text-primary-foreground")
+          (locked ? "border-amber-400/40 text-amber-700"
+            : accent ? "ai-gradient text-[color:var(--ai-foreground)]"
+            : "primary-gradient text-primary-foreground")
         }
       >
-        <Eye className="mr-2 h-4 w-4" />
-        {cta}
+        {locked ? <Lock className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}
+        {locked ? `Desbloquear ${tier}` : cta}
       </Button>
     </div>
   );
