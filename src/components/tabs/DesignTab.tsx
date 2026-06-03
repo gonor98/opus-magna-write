@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore, wordCount } from "@/lib/store";
-import { aiImage, aiText } from "@/lib/ai.functions";
+import { aiImage, aiText, aiAuthorAvatarPrompt } from "@/lib/ai.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Image as ImageIcon, Download, Bot, Coins, Barcode, Sparkles } from "lucide-react";
+import { Image as ImageIcon, Download, Bot, Coins, Barcode, Sparkles, User, Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import bwipjs from "bwip-js/browser";
+import { requireFeature } from "@/lib/tier";
+import { CoverEngine } from "@/components/cover/CoverEngine";
+import { MarketSignals } from "@/components/market/MarketSignals";
 
 const BLUEPRINTS = [
   "Autoayuda estilo James Clear",
@@ -24,18 +27,15 @@ const BLUEPRINTS = [
 
 export function DesignTab() {
   const {
-    bookContext,
-    publishingForm,
-    setPublishingForm,
-    bookCover,
-    setBookCover,
-    authorDNA,
-    chapters,
+    bookContext, publishingForm, setPublishingForm,
+    bookCover, setBookCover, authorDNA,
+    chapters, authorPhoto, setAuthorPhoto,
   } = useBookStore();
   const [busy, setBusy] = useState("");
   const [barcodeUrl, setBarcodeUrl] = useState<string | null>(null);
   const imageFn = useServerFn(aiImage);
   const textFn = useServerFn(aiText);
+  const avatarPromptFn = useServerFn(aiAuthorAvatarPrompt);
   const barcodeRef = useRef<HTMLCanvasElement>(null);
 
   // Generate EAN-13 whenever ISBN changes
@@ -65,6 +65,7 @@ export function DesignTab() {
   }, [publishingForm.isbn]);
 
   const generateCover = async () => {
+    if (!requireFeature("cover.generate", "Generar portada IA")) return;
     setBusy("cover");
     try {
       const { dataUrl } = await imageFn({
@@ -77,6 +78,25 @@ export function DesignTab() {
       toast.success("Portada generada");
     } catch (e: any) {
       toast.error(e.message || "Error generando portada");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const generateAuthorPhoto = async () => {
+    if (!publishingForm.author) return toast.error("Indica el nombre del autor primero");
+    if (!requireFeature("cover.generate", "Generar foto profesional del autor")) return;
+    setBusy("avatar");
+    const tid = toast.loading("📸 Generando retrato editorial 4K…");
+    try {
+      const { prompt } = await avatarPromptFn({
+        data: { name: publishingForm.author, bio: authorDNA.bio, tone: "warm authority bestselling author headshot" },
+      });
+      const { dataUrl } = await imageFn({ data: { prompt, aspectRatio: "3:4" } });
+      setAuthorPhoto(dataUrl);
+      toast.success("Retrato listo", { id: tid });
+    } catch (e: any) {
+      toast.error(e?.message || "Error", { id: tid });
     } finally {
       setBusy("");
     }
