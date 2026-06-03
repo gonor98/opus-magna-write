@@ -12,6 +12,7 @@ import { ManuscriptTab } from "@/components/tabs/ManuscriptTab";
 import { MatterTab } from "@/components/tabs/MatterTab";
 import { DesignTab } from "@/components/tabs/DesignTab";
 import { MarketingTab } from "@/components/tabs/MarketingTab";
+import { AutoPilot } from "@/components/autopilot/AutoPilot";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
@@ -75,11 +76,33 @@ function Studio() {
 
       <main className={"mx-auto px-6 py-8 " + (focus ? "max-w-4xl" : "max-w-[1400px]")}>
         {currentStep === 1 && <IkigaiEngine />}
-        {currentStep === 2 && <StepShell title="ADN del autor" subtitle="Paso 2 · Clonación de identidad multimodal"><AuthorDNATab /></StepShell>}
-        {currentStep === 3 && <StepShell title="Bestseller Matrix" subtitle="Paso 3 · Estructura de alta retención"><ManuscriptTab /></StepShell>}
-        {currentStep === 4 && <StepShell title="Editor Tiptap" subtitle="Paso 4 · Co-creación interactiva"><ManuscriptTab /></StepShell>}
-        {currentStep === 5 && <StepShell title="Diseño & Exportar" subtitle="Paso 5 · Portada + KDP-ready"><DesignTab /><MatterTab /></StepShell>}
-        {currentStep === 6 && <StepShell title="Launch & Marketing" subtitle="Paso 6 · Audiolibro, traducción, distribución"><MarketingTab /></StepShell>}
+        {currentStep === 2 && (
+          <StepShell title="ADN del autor" subtitle="Paso 2 · Clonación de identidad multimodal">
+            <AutoPilot chapterCount={10} />
+            <AuthorDNATab />
+          </StepShell>
+        )}
+        {currentStep === 3 && (
+          <StepShell title="Bestseller Matrix" subtitle="Paso 3 · Estructura de alta retención">
+            <ManuscriptTab forceView="corkboard" />
+          </StepShell>
+        )}
+        {currentStep === 4 && (
+          <StepShell title="Editor Tiptap" subtitle="Paso 4 · Co-creación interactiva">
+            <ManuscriptTab forceView="editor" />
+          </StepShell>
+        )}
+        {currentStep === 5 && (
+          <StepShell title="Diseño & Exportar" subtitle="Paso 5 · Portada + KDP-ready">
+            <DesignTab />
+            <MatterTab />
+          </StepShell>
+        )}
+        {currentStep === 6 && (
+          <StepShell title="Launch & Marketing" subtitle="Paso 6 · Audiolibro, traducción, distribución">
+            <MarketingTab />
+          </StepShell>
+        )}
 
         {!focus && currentStep > 1 && (
           <div className="mx-auto mt-10 flex max-w-3xl items-center justify-between border-t border-border/60 pt-6">
