@@ -350,6 +350,7 @@ Devuelve JSON puro con estas claves exactas:
             Estimación basada en {wc.toLocaleString()} palabras
           </Badge>
         </Card>
+        </div>
       </div>
     </div>
   );
