@@ -619,4 +619,26 @@ backCoverPrompt: fondo abstracto/textura sutil para contraportada que combine co
     return object;
   });
 
+/* ---------- Author 4K avatar prompt + image ---------- */
+export const aiAuthorAvatarPrompt = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      name: z.string().min(1),
+      bio: z.string().optional(),
+      tone: z.string().optional(),
+    }).parse,
+  )
+  .handler(async ({ data }) => {
+    const gateway = getGateway();
+    const { text } = await generateText({
+      model: gateway(DEFAULT_TEXT_MODEL),
+      prompt: `Genera UN solo prompt en inglés (90-130 palabras) para una FOTOGRAFÍA PROFESIONAL 4K de retrato editorial del autor "${data.name}".
+Bio: ${(data.bio || "").slice(0, 600)}
+Tono: ${data.tone || "warm authority, bestselling author headshot"}
+Incluye: cámara (medium format), iluminación (Rembrandt suave), pose, vestuario (smart casual editorial), composición (3/4 retrato), fondo (gradiente neutro estudio), expresión, atmósfera. NO incluyas texto en la imagen. Devuelve SOLO el prompt, una sola línea.`,
+    });
+    return { prompt: text.trim() };
+  });
+
+
 

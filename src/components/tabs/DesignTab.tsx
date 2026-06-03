@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore, wordCount } from "@/lib/store";
-import { aiImage, aiText } from "@/lib/ai.functions";
+import { aiImage, aiText, aiAuthorAvatarPrompt } from "@/lib/ai.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Image as ImageIcon, Download, Bot, Coins, Barcode, Sparkles } from "lucide-react";
+import { Image as ImageIcon, Download, Bot, Coins, Barcode, Sparkles, User, Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import bwipjs from "bwip-js/browser";
+import { requireFeature } from "@/lib/tier";
+import { CoverEngine } from "@/components/cover/CoverEngine";
+import { MarketSignals } from "@/components/market/MarketSignals";
 
 const BLUEPRINTS = [
   "Autoayuda estilo James Clear",
@@ -24,18 +27,15 @@ const BLUEPRINTS = [
 
 export function DesignTab() {
   const {
-    bookContext,
-    publishingForm,
-    setPublishingForm,
-    bookCover,
-    setBookCover,
-    authorDNA,
-    chapters,
+    bookContext, publishingForm, setPublishingForm,
+    bookCover, setBookCover, authorDNA,
+    chapters, authorPhoto, setAuthorPhoto,
   } = useBookStore();
   const [busy, setBusy] = useState("");
   const [barcodeUrl, setBarcodeUrl] = useState<string | null>(null);
   const imageFn = useServerFn(aiImage);
   const textFn = useServerFn(aiText);
+  const avatarPromptFn = useServerFn(aiAuthorAvatarPrompt);
   const barcodeRef = useRef<HTMLCanvasElement>(null);
 
   // Generate EAN-13 whenever ISBN changes
@@ -65,6 +65,7 @@ export function DesignTab() {
   }, [publishingForm.isbn]);
 
   const generateCover = async () => {
+    if (!requireFeature("cover.generate", "Generar portada IA")) return;
     setBusy("cover");
     try {
       const { dataUrl } = await imageFn({
@@ -77,6 +78,25 @@ export function DesignTab() {
       toast.success("Portada generada");
     } catch (e: any) {
       toast.error(e.message || "Error generando portada");
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const generateAuthorPhoto = async () => {
+    if (!publishingForm.author) return toast.error("Indica el nombre del autor primero");
+    if (!requireFeature("cover.generate", "Generar foto profesional del autor")) return;
+    setBusy("avatar");
+    const tid = toast.loading("📸 Generando retrato editorial 4K…");
+    try {
+      const { prompt } = await avatarPromptFn({
+        data: { name: publishingForm.author, bio: authorDNA.bio, tone: "warm authority bestselling author headshot" },
+      });
+      const { dataUrl } = await imageFn({ data: { prompt, aspectRatio: "3:4" } });
+      setAuthorPhoto(dataUrl);
+      toast.success("Retrato listo", { id: tid });
+    } catch (e: any) {
+      toast.error(e?.message || "Error", { id: tid });
     } finally {
       setBusy("");
     }
@@ -140,41 +160,61 @@ Devuelve JSON puro con estas claves exactas:
   const digitalRoyalty = publishingForm.priceDigital * 0.7;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
-      <Card className="rounded-2xl border-border/70 p-6 shadow-soft">
-        <h3 className="font-display text-lg font-semibold">Portada IA</h3>
-        <p className="text-sm text-muted-foreground">Diseño editorial generado por Lovable AI.</p>
-        <div className="relative mt-4 aspect-[3/4] overflow-hidden rounded-xl border border-border bg-secondary/40">
-          {bookCover ? (
-            <img src={bookCover} alt="Portada" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-              <ImageIcon className="h-12 w-12" />
+    <div className="space-y-6">
+      <MarketSignals />
+      <CoverEngine />
+
+      <div className="grid gap-6 lg:grid-cols-[400px_1fr]">
+        <div className="space-y-6">
+          <Card className="rounded-2xl border-border/70 p-6 shadow-soft">
+            <h3 className="font-display text-lg font-semibold">Portada principal</h3>
+            <p className="text-sm text-muted-foreground">Quick-gen rápido (usa Cover Engine arriba para 4 variantes).</p>
+            <div className="relative mt-4 aspect-[3/4] overflow-hidden rounded-xl border border-border bg-secondary/40">
+              {bookCover ? (
+                <img src={bookCover} alt="Portada" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                  <ImageIcon className="h-12 w-12" />
+                </div>
+              )}
+              {barcodeUrl && (
+                <div className="absolute bottom-2 right-2 rounded bg-white p-1 shadow-elevated ring-1 ring-black/10">
+                  <img src={barcodeUrl} alt="EAN-13" className="h-10 w-auto" />
+                </div>
+              )}
             </div>
-          )}
-          {/* Simulated back-cover EAN-13 placement (lower-right corner of cover spread) */}
-          {barcodeUrl && (
-            <div className="absolute bottom-2 right-2 rounded bg-white p-1 shadow-elevated ring-1 ring-black/10">
-              <img src={barcodeUrl} alt="EAN-13" className="h-10 w-auto" />
+            <div className="mt-4 flex gap-2">
+              <Button onClick={generateCover} disabled={busy === "cover"} className="ai-gradient flex-1 text-[color:var(--ai-foreground)]">
+                <ImageIcon className="mr-2 h-4 w-4" />
+                {busy === "cover" ? "Renderizando…" : bookCover ? "Regenerar" : "Generar portada"}
+              </Button>
+              {bookCover && (
+                <Button variant="outline" onClick={downloadCover}><Download className="h-4 w-4" /></Button>
+              )}
             </div>
-          )}
-        </div>
-        <div className="mt-4 flex gap-2">
-          <Button
-            onClick={generateCover}
-            disabled={busy === "cover"}
-            className="ai-gradient flex-1 text-[color:var(--ai-foreground)]"
-          >
-            <ImageIcon className="mr-2 h-4 w-4" />
-            {busy === "cover" ? "Renderizando…" : bookCover ? "Regenerar" : "Generar portada"}
-          </Button>
-          {bookCover && (
-            <Button variant="outline" onClick={downloadCover}>
-              <Download className="h-4 w-4" />
+          </Card>
+
+          <Card className="rounded-2xl border-border/70 p-6 shadow-soft">
+            <div className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-primary" />
+              <h3 className="font-display text-lg font-semibold">Foto del autor · 4K</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">Retrato editorial profesional para contraportada y prensa.</p>
+            <div className="relative mt-4 aspect-[3/4] overflow-hidden rounded-xl border border-border bg-secondary/40">
+              {authorPhoto ? (
+                <img src={authorPhoto} alt="Autor" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                  <User className="h-12 w-12" />
+                </div>
+              )}
+            </div>
+            <Button onClick={generateAuthorPhoto} disabled={busy === "avatar"} className="mt-4 w-full primary-gradient text-primary-foreground">
+              {busy === "avatar" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}
+              {authorPhoto ? "Regenerar retrato" : "Generar retrato 4K"}
             </Button>
-          )}
+          </Card>
         </div>
-      </Card>
 
       <div className="space-y-6">
         <Card className="rounded-2xl border-border/70 p-6 shadow-soft">
@@ -310,6 +350,7 @@ Devuelve JSON puro con estas claves exactas:
             Estimación basada en {wc.toLocaleString()} palabras
           </Badge>
         </Card>
+        </div>
       </div>
     </div>
   );

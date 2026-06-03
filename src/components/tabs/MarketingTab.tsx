@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider";
 import { Mail, Megaphone, MonitorPlay, Copy, Mic, Languages, Headphones, Upload, Download, Play, Pause, Wand2, Volume2, Square, Sliders } from "lucide-react";
 import { Markdown } from "@/components/Markdown";
 import { toast } from "sonner";
+import { requireFeature } from "@/lib/tier";
 
 const ITEMS = [
   { kind: "emails" as const, label: "Emails de pre-venta", icon: Mail, copy: "Fórmula PAS, 3 correos" },
@@ -137,6 +138,7 @@ function AudiobookAndTranslate() {
   const generateACX = async () => {
     const ch = chapters[chapterIdx];
     if (!ch?.content) return toast.error("Selecciona un capítulo con contenido");
+    if (!requireFeature("export.acx", "Script ACX para audiolibro")) return;
     setBusy("acx");
     try {
       const { text } = await acxFn({

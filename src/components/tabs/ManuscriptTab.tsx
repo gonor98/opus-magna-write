@@ -36,6 +36,7 @@ import {
   Grid3X3,
 } from "lucide-react";
 import { toast } from "sonner";
+import { requireFeature } from "@/lib/tier";
 import { Markdown } from "@/components/Markdown";
 import { TiptapEditor } from "@/components/TiptapEditor";
 import {
@@ -57,7 +58,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export function ManuscriptTab() {
+export function ManuscriptTab({ forceView }: { forceView?: "corkboard" | "editor" } = {}) {
   const {
     bookContext,
     setBookContext,
@@ -77,7 +78,8 @@ export function ManuscriptTab() {
   } = useBookStore();
 
   const [chapterCount, setChapterCount] = useState(8);
-  const [view, setView] = useState<"corkboard" | "editor">("corkboard");
+  const [viewState, setView] = useState<"corkboard" | "editor">(forceView || "corkboard");
+  const view = forceView || viewState;
   const [busy, setBusy] = useState<string>("");
   const [titleModal, setTitleModal] = useState<
     null | { suggestions: { title: string; subtitle: string; psychology: string }[] }
@@ -198,6 +200,7 @@ export function ManuscriptTab() {
   const runBeta = async () => {
     if (!active) return;
     if ((active.content || "").length < 100) return toast.error("Escribe más antes de pedir crítica");
+    if (!requireFeature("audit", "Crítica del Editor Senior")) return;
     setBusy("beta");
     try {
       const { text } = await betaFn({ data: { content: active.content } });
@@ -211,6 +214,7 @@ export function ManuscriptTab() {
 
   const runFact = async () => {
     if (!active || !active.content) return;
+    if (!requireFeature("audit", "Fact-check IA")) return;
     setBusy("fact");
     try {
       const { text } = await factFn({ data: { content: active.content } });
@@ -224,6 +228,7 @@ export function ManuscriptTab() {
 
   const generateInlineImage = async () => {
     if (!active || !imagePrompt.trim()) return;
+    if (!requireFeature("cover.generate", "Generar ilustración con IA")) return;
     setBusy("image");
     try {
       const { dataUrl } = await imageFn({
