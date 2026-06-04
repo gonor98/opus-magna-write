@@ -108,21 +108,6 @@ function hashString(s: string): number {
   return Math.abs(h);
 }
 
-function stripACXMarkers(script: string): string {
-  return script
-    .replace(/\[PAUSA:\s*([0-9.]+)s\]/gi, ", ")
-    .replace(/\[RESPIRA\]/gi, " … ")
-    .replace(/\[TONO:[^\]]+\]/gi, "")
-    .replace(/\[PRON:\s*"([^"]+)"\]/gi, "$1")
-    .replace(/\[DURACIÓN[^\]]+\]/gi, "")
-    .replace(/—FIN[^—\n]*—/g, "")
-    .replace(/^##\s+SECCIÓN[^\n]+/gm, "")
-    .replace(/^TÍTULO:[^\n]+\n?/gm, "")
-    .replace(/^ESTIMADO:[^\n]+\n?/gm, "")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 /* -------------------- Audiobook & Translate -------------------- */
 
