@@ -157,19 +157,78 @@ function AudiobookAndTranslate() {
     }
   };
 
-  const downloadACX = () => {
-    if (!acxScript) return;
-    const ch = chapters[chapterIdx];
-    const blob = new Blob([acxScript], { type: "text/plain;charset=utf-8" });
+  const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ACX_${(ch?.title || "capitulo").replace(/[^a-z0-9]+/gi, "_")}.txt`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const safeName = (s: string) => (s || "capitulo").replace(/[^a-z0-9]+/gi, "_").slice(0, 60);
+
+  const downloadACX = () => {
+    if (!acxScript) return;
+    const ch = chapters[chapterIdx];
+    downloadBlob(new Blob([acxScript], { type: "text/plain;charset=utf-8" }), `ACX_${safeName(ch?.title || "")}.txt`);
     toast.success("Script ACX descargado");
+  };
+
+  const downloadSSML = () => {
+    if (!acxScript) return;
+    const ch = chapters[chapterIdx];
+    const ssml = acxToSSML(acxScript, { voiceName, lang: "es-ES" });
+    downloadBlob(new Blob([ssml], { type: "application/ssml+xml;charset=utf-8" }), `${safeName(ch?.title || "")}.ssml`);
+    toast.success("SSML listo para TTS/producción");
+  };
+
+  const downloadWAV = () => {
+    if (!acxScript) return;
+    if (!requireFeature("voice.clone", "Renderizar audio con voz clonada")) return;
+    const ch = chapters[chapterIdx];
+    const clean = cleanForTTS(acxScript);
+    const blob = synthMockNarration(clean, { voiceName });
+    downloadBlob(blob, `${safeName(ch?.title || "")}_${safeName(voiceName)}.wav`);
+    toast.success(`WAV ${voiceName} renderizado (mock)`);
+  };
+
+  const generateAllChapters = async () => {
+    if (!chapters.length) return toast.error("No hay capítulos");
+    if (!requireFeature("export.acx", "Generar ACX para todos los capítulos")) return;
+    setBusy("acx");
+    const tid = toast.loading(`Generando ACX para ${chapters.length} capítulos…`);
+    const zip = new JSZip();
+    try {
+      for (let i = 0; i < chapters.length; i++) {
+        const ch = chapters[i];
+        if (!ch.content) continue;
+        toast.loading(`Capítulo ${i + 1}/${chapters.length} · ${ch.title}`, { id: tid });
+        const { text } = await acxFn({
+          data: { content: ch.content, chapterTitle: ch.title, persona: authorDNA.extractedPersona },
+        });
+        const base = `${String(i + 1).padStart(2, "0")}_${safeName(ch.title)}`;
+        zip.file(`${base}.txt`, text);
+        zip.file(`${base}.ssml`, acxToSSML(text, { voiceName, lang: "es-ES" }));
+        const wavBlob = synthMockNarration(cleanForTTS(text), { voiceName });
+        zip.file(`${base}.wav`, await wavBlob.arrayBuffer());
+        const report = validateACXChapter(text);
+        zip.file(`${base}.report.json`, JSON.stringify(report, null, 2));
+      }
+      zip.file(
+        "README.md",
+        `# Paquete ACX completo\nVoz: ${voiceName}\nCapítulos: ${chapters.length}\nFecha: ${new Date().toISOString()}\n\nContiene .txt (ACX), .ssml (TTS), .wav (mock voz clonada), .report.json (validación broadcast).`,
+      );
+      const blob = await zip.generateAsync({ type: "blob" });
+      downloadBlob(blob, `audiolibro_${safeName(voiceName)}_${chapters.length}cap.zip`);
+      toast.success(`Audiolibro ZIP descargado · ${chapters.length} capítulos`, { id: tid });
+    } catch (e: any) {
+      toast.error(e?.message || "Error generando ACX", { id: tid });
+    } finally {
+      setBusy("");
+    }
   };
 
   const translateAll = async (override?: "en" | "zh") => {
