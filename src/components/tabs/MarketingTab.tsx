@@ -180,7 +180,7 @@ function AudiobookAndTranslate() {
   const downloadSSML = () => {
     if (!acxScript) return;
     const ch = chapters[chapterIdx];
-    const ssml = acxToSSML(acxScript, { voiceName, lang: "es-ES" });
+    const ssml = acxToSSML(acxScript, { voice: voiceName, lang: "es-ES" });
     downloadBlob(new Blob([ssml], { type: "application/ssml+xml;charset=utf-8" }), `${safeName(ch?.title || "")}.ssml`);
     toast.success("SSML listo para TTS/producción");
   };
@@ -211,7 +211,7 @@ function AudiobookAndTranslate() {
         });
         const base = `${String(i + 1).padStart(2, "0")}_${safeName(ch.title)}`;
         zip.file(`${base}.txt`, text);
-        zip.file(`${base}.ssml`, acxToSSML(text, { voiceName, lang: "es-ES" }));
+        zip.file(`${base}.ssml`, acxToSSML(text, { voice: voiceName, lang: "es-ES" }));
         const wavBlob = synthMockNarration(cleanForTTS(text), { voiceName });
         zip.file(`${base}.wav`, await wavBlob.arrayBuffer());
         const report = validateACXChapter(text);
