@@ -92,9 +92,13 @@ export function MarketingTab() {
       <div className="lg:col-span-3">
         <AudiobookAndTranslate />
       </div>
+      <div className="lg:col-span-3">
+        <DiagnosticsPanel />
+      </div>
     </div>
   );
 }
+
 
 /* -------------------- Shared utils -------------------- */
 
