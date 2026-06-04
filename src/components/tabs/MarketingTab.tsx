@@ -373,6 +373,9 @@ function ACXCard({
   busy,
   onGenerate,
   onDownload,
+  onDownloadSSML,
+  onDownloadWAV,
+  onGenerateAll,
   voiceName,
   cloneReady,
 }: {
@@ -383,12 +386,17 @@ function ACXCard({
   busy: boolean;
   onGenerate: () => void;
   onDownload: () => void;
+  onDownloadSSML: () => void;
+  onDownloadWAV: () => void;
+  onGenerateAll: () => void;
   voiceName: string;
   cloneReady: boolean;
 }) {
   const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
+
+  const report: ACXReport | null = acxScript ? validateACXChapter(acxScript) : null;
 
   const speak = () => {
     if (!acxScript) return toast.error("Genera primero el script ACX");
@@ -400,12 +408,11 @@ function ACXCard({
       setSpeaking(false);
       return;
     }
-    const clean = stripACXMarkers(acxScript).slice(0, 2200);
+    const clean = cleanForTTS(acxScript).slice(0, 2200);
     const u = new SpeechSynthesisUtterance(clean);
-    // Mocked clone: derive pitch/rate from voiceName hash so each "voice" sounds distinct
     const h = hashString(voiceName);
-    u.pitch = cloneReady ? 0.8 + ((h % 70) / 100) : 1; // 0.8–1.5
-    u.rate = cloneReady ? 0.9 + (((h >> 3) % 30) / 100) : 1; // 0.9–1.2
+    u.pitch = cloneReady ? 0.8 + ((h % 70) / 100) : 1;
+    u.rate = cloneReady ? 0.9 + (((h >> 3) % 30) / 100) : 1;
     u.lang = "es-ES";
     const voices = window.speechSynthesis.getVoices();
     const es = voices.find((v) => v.lang.startsWith("es"));
@@ -417,33 +424,6 @@ function ACXCard({
     toast.success(cloneReady ? `Vista previa con voz "${voiceName}"` : "Vista previa (clona tu voz para timbre personalizado)");
   };
 
-  const downloadNarrationPackage = () => {
-    if (!acxScript) return toast.error("Genera primero el script ACX");
-    const ch = chapters[chapterIdx];
-    const meta = [
-      `# Vista previa de narración — ${ch?.title || "Capítulo"}`,
-      `Voz: ${voiceName}${cloneReady ? " (clonada)" : " (mock no entrenada)"}`,
-      `Generado: ${new Date().toISOString()}`,
-      `Palabras: ${stripACXMarkers(acxScript).split(/\s+/).filter(Boolean).length}`,
-      "",
-      "---",
-      "## SCRIPT ACX",
-      acxScript,
-      "",
-      "---",
-      "## TEXTO LIMPIO PARA TTS",
-      stripACXMarkers(acxScript),
-    ].join("\n");
-    const blob = new Blob([meta], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `narracion_${(ch?.title || "cap").replace(/[^a-z0-9]+/gi, "_")}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Paquete de narración descargado");
-  };
-
   return (
     <Card className="group relative overflow-hidden rounded-2xl border-border/70 bg-gradient-to-br from-surface to-ai-muted/40 p-6 shadow-soft animate-fade-in hover-lift">
       <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[color:var(--ai)]/15 blur-3xl transition group-hover:bg-[color:var(--ai)]/25" />
@@ -453,8 +433,8 @@ function ACXCard({
             <Headphones className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-display text-lg font-semibold">Audiolibro ACX</h3>
-            <p className="text-xs text-muted-foreground">Secciones · pausas · respiración · pronunciación.</p>
+            <h3 className="font-display text-lg font-semibold">Audiolibro ACX · SSML · WAV</h3>
+            <p className="text-xs text-muted-foreground">Secciones · pausas · respiración · pronunciación · descarga lista para producción.</p>
           </div>
         </div>
         {cloneReady && (
@@ -480,21 +460,63 @@ function ACXCard({
           <Mic className="mr-2 h-4 w-4" />
           {busy ? "Generando…" : "Generar Script ACX"}
         </Button>
+        <Button onClick={onGenerateAll} disabled={busy} variant="outline" title="ACX + SSML + WAV por capítulo en un ZIP">
+          <Package className="mr-2 h-4 w-4" />
+          Audiolibro completo (ZIP)
+        </Button>
         {acxScript && (
           <>
-            <Button variant="outline" onClick={onDownload} title="Descargar script ACX">
-              <Download className="mr-2 h-4 w-4" /> Script .txt
+            <Button variant="outline" size="sm" onClick={onDownload} title="Script ACX en texto plano">
+              <Download className="mr-1.5 h-3.5 w-3.5" /> .txt
             </Button>
-            <Button variant="outline" onClick={speak} title={speaking ? "Detener" : "Reproducir vista previa"}>
-              {speaking ? <Square className="mr-2 h-4 w-4" /> : <Volume2 className="mr-2 h-4 w-4" />}
-              {speaking ? "Detener" : "Vista previa TTS"}
+            <Button variant="outline" size="sm" onClick={onDownloadSSML} title="SSML 1.1 con pausas, respiraciones y prosody (listo para TTS)">
+              <FileAudio className="mr-1.5 h-3.5 w-3.5" /> .ssml
             </Button>
-            <Button variant="outline" onClick={downloadNarrationPackage} title="Descargar paquete completo">
-              <Download className="mr-2 h-4 w-4" /> Narración
+            <Button variant="outline" size="sm" onClick={onDownloadWAV} title="WAV mock con tu voz clonada">
+              <Download className="mr-1.5 h-3.5 w-3.5" /> .wav
+            </Button>
+            <Button variant="ghost" size="sm" onClick={speak} title={speaking ? "Detener" : "Reproducir vista previa"}>
+              {speaking ? <Square className="mr-1.5 h-3.5 w-3.5" /> : <Volume2 className="mr-1.5 h-3.5 w-3.5" />}
+              {speaking ? "Detener" : "Vista previa"}
             </Button>
           </>
         )}
       </div>
+
+      {report && (
+        <div className="mt-4 rounded-xl border border-border/60 bg-surface-elevated p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Validación broadcast · {report.sectionCount} secciones · {report.totalWords} palabras · ~{report.estMinutes} min
+            </div>
+            <span
+              className={
+                "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider " +
+                (report.ok
+                  ? "bg-[color:var(--success)]/15 text-[color:var(--success)]"
+                  : "bg-destructive/10 text-destructive")
+              }
+            >
+              {report.ok ? "OK" : `${report.items.filter((i) => !i.ok).length} fallos`}
+            </span>
+          </div>
+          <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+            {report.items.map((it) => {
+              const Icon = it.ok ? CheckCircle2 : XCircle;
+              return (
+                <li key={it.id} className="flex items-start gap-2 text-xs">
+                  <Icon className={"mt-0.5 h-3.5 w-3.5 shrink-0 " + (it.ok ? "text-[color:var(--success)]" : "text-destructive")} />
+                  <div className="min-w-0">
+                    <div className="font-medium">{it.label}</div>
+                    {it.detail && <div className="text-[11px] text-muted-foreground">{it.detail}</div>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       <div className="mt-4 max-h-72 overflow-auto rounded-xl border border-border/60 bg-surface-elevated p-3 text-sm">
         {acxScript ? (
           <Markdown source={acxScript} />
@@ -507,6 +529,7 @@ function ACXCard({
     </Card>
   );
 }
+
 
 /* -------------------- DNA slider -------------------- */
 
