@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import JSZip from "jszip";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore } from "@/lib/store";
 import { aiMarketing, aiACXScript, aiTranslate } from "@/lib/ai.functions";
@@ -7,10 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
-import { Mail, Megaphone, MonitorPlay, Copy, Mic, Languages, Headphones, Upload, Download, Play, Pause, Wand2, Volume2, Square, Sliders } from "lucide-react";
+import { Mail, Megaphone, MonitorPlay, Copy, Mic, Languages, Headphones, Upload, Download, Play, Pause, Wand2, Volume2, Square, Sliders, FileAudio, CheckCircle2, XCircle, AlertTriangle, Package } from "lucide-react";
 import { Markdown } from "@/components/Markdown";
 import { toast } from "sonner";
 import { requireFeature } from "@/lib/tier";
+import { acxToSSML, validateACXChapter, cleanForTTS, type ACXReport } from "@/lib/acx-utils";
+import { synthMockNarration } from "@/lib/voice-synth";
+import { DiagnosticsPanel } from "@/components/diagnostics/DiagnosticsPanel";
 
 const ITEMS = [
   { kind: "emails" as const, label: "Emails de pre-venta", icon: Mail, copy: "Fórmula PAS, 3 correos" },
@@ -88,9 +92,13 @@ export function MarketingTab() {
       <div className="lg:col-span-3">
         <AudiobookAndTranslate />
       </div>
+      <div className="lg:col-span-3">
+        <DiagnosticsPanel />
+      </div>
     </div>
   );
 }
+
 
 /* -------------------- Shared utils -------------------- */
 
@@ -100,21 +108,6 @@ function hashString(s: string): number {
   return Math.abs(h);
 }
 
-function stripACXMarkers(script: string): string {
-  return script
-    .replace(/\[PAUSA:\s*([0-9.]+)s\]/gi, ", ")
-    .replace(/\[RESPIRA\]/gi, " … ")
-    .replace(/\[TONO:[^\]]+\]/gi, "")
-    .replace(/\[PRON:\s*"([^"]+)"\]/gi, "$1")
-    .replace(/\[DURACIÓN[^\]]+\]/gi, "")
-    .replace(/—FIN[^—\n]*—/g, "")
-    .replace(/^##\s+SECCIÓN[^\n]+/gm, "")
-    .replace(/^TÍTULO:[^\n]+\n?/gm, "")
-    .replace(/^ESTIMADO:[^\n]+\n?/gm, "")
-    .replace(/\*([^*]+)\*/g, "$1")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 /* -------------------- Audiobook & Translate -------------------- */
 
@@ -153,19 +146,78 @@ function AudiobookAndTranslate() {
     }
   };
 
-  const downloadACX = () => {
-    if (!acxScript) return;
-    const ch = chapters[chapterIdx];
-    const blob = new Blob([acxScript], { type: "text/plain;charset=utf-8" });
+  const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `ACX_${(ch?.title || "capitulo").replace(/[^a-z0-9]+/gi, "_")}.txt`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const safeName = (s: string) => (s || "capitulo").replace(/[^a-z0-9]+/gi, "_").slice(0, 60);
+
+  const downloadACX = () => {
+    if (!acxScript) return;
+    const ch = chapters[chapterIdx];
+    downloadBlob(new Blob([acxScript], { type: "text/plain;charset=utf-8" }), `ACX_${safeName(ch?.title || "")}.txt`);
     toast.success("Script ACX descargado");
+  };
+
+  const downloadSSML = () => {
+    if (!acxScript) return;
+    const ch = chapters[chapterIdx];
+    const ssml = acxToSSML(acxScript, { voice: voiceName, lang: "es-ES" });
+    downloadBlob(new Blob([ssml], { type: "application/ssml+xml;charset=utf-8" }), `${safeName(ch?.title || "")}.ssml`);
+    toast.success("SSML listo para TTS/producción");
+  };
+
+  const downloadWAV = () => {
+    if (!acxScript) return;
+    if (!requireFeature("voice.clone", "Renderizar audio con voz clonada")) return;
+    const ch = chapters[chapterIdx];
+    const clean = cleanForTTS(acxScript);
+    const blob = synthMockNarration(clean, { voiceName });
+    downloadBlob(blob, `${safeName(ch?.title || "")}_${safeName(voiceName)}.wav`);
+    toast.success(`WAV ${voiceName} renderizado (mock)`);
+  };
+
+  const generateAllChapters = async () => {
+    if (!chapters.length) return toast.error("No hay capítulos");
+    if (!requireFeature("export.acx", "Generar ACX para todos los capítulos")) return;
+    setBusy("acx");
+    const tid = toast.loading(`Generando ACX para ${chapters.length} capítulos…`);
+    const zip = new JSZip();
+    try {
+      for (let i = 0; i < chapters.length; i++) {
+        const ch = chapters[i];
+        if (!ch.content) continue;
+        toast.loading(`Capítulo ${i + 1}/${chapters.length} · ${ch.title}`, { id: tid });
+        const { text } = await acxFn({
+          data: { content: ch.content, chapterTitle: ch.title, persona: authorDNA.extractedPersona },
+        });
+        const base = `${String(i + 1).padStart(2, "0")}_${safeName(ch.title)}`;
+        zip.file(`${base}.txt`, text);
+        zip.file(`${base}.ssml`, acxToSSML(text, { voice: voiceName, lang: "es-ES" }));
+        const wavBlob = synthMockNarration(cleanForTTS(text), { voiceName });
+        zip.file(`${base}.wav`, await wavBlob.arrayBuffer());
+        const report = validateACXChapter(text);
+        zip.file(`${base}.report.json`, JSON.stringify(report, null, 2));
+      }
+      zip.file(
+        "README.md",
+        `# Paquete ACX completo\nVoz: ${voiceName}\nCapítulos: ${chapters.length}\nFecha: ${new Date().toISOString()}\n\nContiene .txt (ACX), .ssml (TTS), .wav (mock voz clonada), .report.json (validación broadcast).`,
+      );
+      const blob = await zip.generateAsync({ type: "blob" });
+      downloadBlob(blob, `audiolibro_${safeName(voiceName)}_${chapters.length}cap.zip`);
+      toast.success(`Audiolibro ZIP descargado · ${chapters.length} capítulos`, { id: tid });
+    } catch (e: any) {
+      toast.error(e?.message || "Error generando ACX", { id: tid });
+    } finally {
+      setBusy("");
+    }
   };
 
   const translateAll = async (override?: "en" | "zh") => {
@@ -207,9 +259,13 @@ function AudiobookAndTranslate() {
         busy={busy === "acx"}
         onGenerate={generateACX}
         onDownload={downloadACX}
+        onDownloadSSML={downloadSSML}
+        onDownloadWAV={downloadWAV}
+        onGenerateAll={generateAllChapters}
         voiceName={voiceName}
         cloneReady={cloneReady}
       />
+
 
       <Card className="group relative overflow-hidden rounded-2xl border-border/70 bg-gradient-to-br from-surface to-secondary/30 p-6 shadow-soft animate-fade-in hover-lift">
         <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary/10 blur-3xl transition group-hover:bg-primary/15" />
@@ -306,6 +362,9 @@ function ACXCard({
   busy,
   onGenerate,
   onDownload,
+  onDownloadSSML,
+  onDownloadWAV,
+  onGenerateAll,
   voiceName,
   cloneReady,
 }: {
@@ -316,12 +375,17 @@ function ACXCard({
   busy: boolean;
   onGenerate: () => void;
   onDownload: () => void;
+  onDownloadSSML: () => void;
+  onDownloadWAV: () => void;
+  onGenerateAll: () => void;
   voiceName: string;
   cloneReady: boolean;
 }) {
   const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
+
+  const report: ACXReport | null = acxScript ? validateACXChapter(acxScript) : null;
 
   const speak = () => {
     if (!acxScript) return toast.error("Genera primero el script ACX");
@@ -333,12 +397,11 @@ function ACXCard({
       setSpeaking(false);
       return;
     }
-    const clean = stripACXMarkers(acxScript).slice(0, 2200);
+    const clean = cleanForTTS(acxScript).slice(0, 2200);
     const u = new SpeechSynthesisUtterance(clean);
-    // Mocked clone: derive pitch/rate from voiceName hash so each "voice" sounds distinct
     const h = hashString(voiceName);
-    u.pitch = cloneReady ? 0.8 + ((h % 70) / 100) : 1; // 0.8–1.5
-    u.rate = cloneReady ? 0.9 + (((h >> 3) % 30) / 100) : 1; // 0.9–1.2
+    u.pitch = cloneReady ? 0.8 + ((h % 70) / 100) : 1;
+    u.rate = cloneReady ? 0.9 + (((h >> 3) % 30) / 100) : 1;
     u.lang = "es-ES";
     const voices = window.speechSynthesis.getVoices();
     const es = voices.find((v) => v.lang.startsWith("es"));
@@ -350,33 +413,6 @@ function ACXCard({
     toast.success(cloneReady ? `Vista previa con voz "${voiceName}"` : "Vista previa (clona tu voz para timbre personalizado)");
   };
 
-  const downloadNarrationPackage = () => {
-    if (!acxScript) return toast.error("Genera primero el script ACX");
-    const ch = chapters[chapterIdx];
-    const meta = [
-      `# Vista previa de narración — ${ch?.title || "Capítulo"}`,
-      `Voz: ${voiceName}${cloneReady ? " (clonada)" : " (mock no entrenada)"}`,
-      `Generado: ${new Date().toISOString()}`,
-      `Palabras: ${stripACXMarkers(acxScript).split(/\s+/).filter(Boolean).length}`,
-      "",
-      "---",
-      "## SCRIPT ACX",
-      acxScript,
-      "",
-      "---",
-      "## TEXTO LIMPIO PARA TTS",
-      stripACXMarkers(acxScript),
-    ].join("\n");
-    const blob = new Blob([meta], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `narracion_${(ch?.title || "cap").replace(/[^a-z0-9]+/gi, "_")}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Paquete de narración descargado");
-  };
-
   return (
     <Card className="group relative overflow-hidden rounded-2xl border-border/70 bg-gradient-to-br from-surface to-ai-muted/40 p-6 shadow-soft animate-fade-in hover-lift">
       <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-[color:var(--ai)]/15 blur-3xl transition group-hover:bg-[color:var(--ai)]/25" />
@@ -386,8 +422,8 @@ function ACXCard({
             <Headphones className="h-5 w-5" />
           </div>
           <div>
-            <h3 className="font-display text-lg font-semibold">Audiolibro ACX</h3>
-            <p className="text-xs text-muted-foreground">Secciones · pausas · respiración · pronunciación.</p>
+            <h3 className="font-display text-lg font-semibold">Audiolibro ACX · SSML · WAV</h3>
+            <p className="text-xs text-muted-foreground">Secciones · pausas · respiración · pronunciación · descarga lista para producción.</p>
           </div>
         </div>
         {cloneReady && (
@@ -413,21 +449,63 @@ function ACXCard({
           <Mic className="mr-2 h-4 w-4" />
           {busy ? "Generando…" : "Generar Script ACX"}
         </Button>
+        <Button onClick={onGenerateAll} disabled={busy} variant="outline" title="ACX + SSML + WAV por capítulo en un ZIP">
+          <Package className="mr-2 h-4 w-4" />
+          Audiolibro completo (ZIP)
+        </Button>
         {acxScript && (
           <>
-            <Button variant="outline" onClick={onDownload} title="Descargar script ACX">
-              <Download className="mr-2 h-4 w-4" /> Script .txt
+            <Button variant="outline" size="sm" onClick={onDownload} title="Script ACX en texto plano">
+              <Download className="mr-1.5 h-3.5 w-3.5" /> .txt
             </Button>
-            <Button variant="outline" onClick={speak} title={speaking ? "Detener" : "Reproducir vista previa"}>
-              {speaking ? <Square className="mr-2 h-4 w-4" /> : <Volume2 className="mr-2 h-4 w-4" />}
-              {speaking ? "Detener" : "Vista previa TTS"}
+            <Button variant="outline" size="sm" onClick={onDownloadSSML} title="SSML 1.1 con pausas, respiraciones y prosody (listo para TTS)">
+              <FileAudio className="mr-1.5 h-3.5 w-3.5" /> .ssml
             </Button>
-            <Button variant="outline" onClick={downloadNarrationPackage} title="Descargar paquete completo">
-              <Download className="mr-2 h-4 w-4" /> Narración
+            <Button variant="outline" size="sm" onClick={onDownloadWAV} title="WAV mock con tu voz clonada">
+              <Download className="mr-1.5 h-3.5 w-3.5" /> .wav
+            </Button>
+            <Button variant="ghost" size="sm" onClick={speak} title={speaking ? "Detener" : "Reproducir vista previa"}>
+              {speaking ? <Square className="mr-1.5 h-3.5 w-3.5" /> : <Volume2 className="mr-1.5 h-3.5 w-3.5" />}
+              {speaking ? "Detener" : "Vista previa"}
             </Button>
           </>
         )}
       </div>
+
+      {report && (
+        <div className="mt-4 rounded-xl border border-border/60 bg-surface-elevated p-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Validación broadcast · {report.sectionCount} secciones · {report.totalWords} palabras · ~{report.estMinutes} min
+            </div>
+            <span
+              className={
+                "rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider " +
+                (report.ok
+                  ? "bg-[color:var(--success)]/15 text-[color:var(--success)]"
+                  : "bg-destructive/10 text-destructive")
+              }
+            >
+              {report.ok ? "OK" : `${report.items.filter((i) => !i.ok).length} fallos`}
+            </span>
+          </div>
+          <ul className="mt-2 grid gap-1 sm:grid-cols-2">
+            {report.items.map((it) => {
+              const Icon = it.ok ? CheckCircle2 : XCircle;
+              return (
+                <li key={it.id} className="flex items-start gap-2 text-xs">
+                  <Icon className={"mt-0.5 h-3.5 w-3.5 shrink-0 " + (it.ok ? "text-[color:var(--success)]" : "text-destructive")} />
+                  <div className="min-w-0">
+                    <div className="font-medium">{it.label}</div>
+                    {it.detail && <div className="text-[11px] text-muted-foreground">{it.detail}</div>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       <div className="mt-4 max-h-72 overflow-auto rounded-xl border border-border/60 bg-surface-elevated p-3 text-sm">
         {acxScript ? (
           <Markdown source={acxScript} />
@@ -440,6 +518,7 @@ function ACXCard({
     </Card>
   );
 }
+
 
 /* -------------------- DNA slider -------------------- */
 
