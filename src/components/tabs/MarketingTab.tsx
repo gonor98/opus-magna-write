@@ -270,9 +270,13 @@ function AudiobookAndTranslate() {
         busy={busy === "acx"}
         onGenerate={generateACX}
         onDownload={downloadACX}
+        onDownloadSSML={downloadSSML}
+        onDownloadWAV={downloadWAV}
+        onGenerateAll={generateAllChapters}
         voiceName={voiceName}
         cloneReady={cloneReady}
       />
+
 
       <Card className="group relative overflow-hidden rounded-2xl border-border/70 bg-gradient-to-br from-surface to-secondary/30 p-6 shadow-soft animate-fade-in hover-lift">
         <div className="pointer-events-none absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary/10 blur-3xl transition group-hover:bg-primary/15" />
