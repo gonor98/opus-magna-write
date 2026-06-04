@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import JSZip from "jszip";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore } from "@/lib/store";
 import { aiMarketing, aiACXScript, aiTranslate } from "@/lib/ai.functions";
@@ -7,10 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
-import { Mail, Megaphone, MonitorPlay, Copy, Mic, Languages, Headphones, Upload, Download, Play, Pause, Wand2, Volume2, Square, Sliders } from "lucide-react";
+import { Mail, Megaphone, MonitorPlay, Copy, Mic, Languages, Headphones, Upload, Download, Play, Pause, Wand2, Volume2, Square, Sliders, FileAudio, CheckCircle2, XCircle, AlertTriangle, Package } from "lucide-react";
 import { Markdown } from "@/components/Markdown";
 import { toast } from "sonner";
 import { requireFeature } from "@/lib/tier";
+import { acxToSSML, validateACXChapter, cleanForTTS, type ACXReport } from "@/lib/acx-utils";
+import { synthMockNarration } from "@/lib/voice-synth";
+import { DiagnosticsPanel } from "@/components/diagnostics/DiagnosticsPanel";
 
 const ITEMS = [
   { kind: "emails" as const, label: "Emails de pre-venta", icon: Mail, copy: "Fórmula PAS, 3 correos" },
