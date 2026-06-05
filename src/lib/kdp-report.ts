@@ -73,17 +73,18 @@ export async function buildKDPReport(): Promise<KDPReport> {
   // Cover
   if (s.bookCover) {
     try {
-      const v = await validateCoverImage(s.bookCover);
-      (v?.issues || []).forEach((it: any) =>
+      const spec = buildCoverSpec("6x9", Math.max(24, s.chapters.length * 12), "white");
+      const v = await validateCoverImage(s.bookCover, spec, "front");
+      (v?.findings || []).forEach((it) =>
         findings.push({
           area: "cover",
-          level: it.level || "warning",
-          field: it.field || "cover",
-          message: it.message || String(it),
-          recommendation: it.fix,
+          level: mapLevel(it.level),
+          field: it.id,
+          message: it.label,
+          recommendation: it.detail,
         }),
       );
-      findings.push(okBadge(!!v?.ok, "resolution", "Resolución/DPI insuficientes para imprenta KDP.", "cover", "Mínimo 300 DPI, 2560×3840 px para 6x9."));
+      findings.push(okBadge(!!v?.ok, "resolution", "Resolución/DPI insuficientes para imprenta KDP.", "cover", `Mínimo 300 DPI, ${spec.frontPxWidth}×${spec.frontPxHeight}px.`));
     } catch (e) {
       findings.push({ area: "cover", level: "warning", field: "validator", message: (e as Error).message });
     }
@@ -97,12 +98,8 @@ export async function buildKDPReport(): Promise<KDPReport> {
   findings.push(okBadge(!!s.frontBackMatter.acknowledgments, "acknowledgments", "Sin agradecimientos.", "docx"));
 
   // Audio
-  const acxCount = Object.keys(s.assets?.acxScripts || {}).length || 0;
-  findings.push(
-    acxCount > 0
-      ? { area: "audio", level: "ok", field: "acx", message: `${acxCount} guiones ACX listos.` }
-      : { area: "audio", level: "info", field: "acx", message: "Aún sin guiones ACX." },
-  );
+  findings.push({ area: "audio", level: "info", field: "acx", message: "Genera guiones ACX en Paso 6 para audiolibro." });
+
 
   const totals = {
     errors: findings.filter((f) => f.level === "error").length,
