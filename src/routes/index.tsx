@@ -13,6 +13,11 @@ import { MatterTab } from "@/components/tabs/MatterTab";
 import { DesignTab } from "@/components/tabs/DesignTab";
 import { MarketingTab } from "@/components/tabs/MarketingTab";
 import { AutoPilot } from "@/components/autopilot/AutoPilot";
+import { AuthorResearch } from "@/components/research/AuthorResearch";
+import { AIBookBuilder } from "@/components/ai-book/AIBookBuilder";
+import { KDPReportPanel } from "@/components/kdp/KDPReportPanel";
+import { E2EPaywallSuite } from "@/components/diagnostics/E2EPaywallSuite";
+import { ResumeBanner } from "@/components/layout/ResumeBanner";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
@@ -72,18 +77,21 @@ function Studio() {
   return (
     <div className="min-h-screen bg-background">
       {!focus && <Header focusMode={focus} setFocusMode={setFocus} />}
+      {!focus && <ResumeBanner />}
       {!focus && <GoldenPathStepper />}
 
       <main className={"mx-auto px-6 py-8 " + (focus ? "max-w-4xl" : "max-w-[1400px]")}>
         {currentStep === 1 && <IkigaiEngine />}
         {currentStep === 2 && (
           <StepShell title="ADN del autor" subtitle="Paso 2 · Clonación de identidad multimodal">
+            <AuthorResearch />
             <AutoPilot chapterCount={10} />
             <AuthorDNATab />
           </StepShell>
         )}
         {currentStep === 3 && (
           <StepShell title="Bestseller Matrix" subtitle="Paso 3 · Estructura de alta retención">
+            <AIBookBuilder />
             <ManuscriptTab forceView="corkboard" />
           </StepShell>
         )}
@@ -96,11 +104,13 @@ function Studio() {
           <StepShell title="Diseño & Exportar" subtitle="Paso 5 · Portada + KDP-ready">
             <DesignTab />
             <MatterTab />
+            <KDPReportPanel />
           </StepShell>
         )}
         {currentStep === 6 && (
           <StepShell title="Launch & Marketing" subtitle="Paso 6 · Audiolibro, traducción, distribución">
             <MarketingTab />
+            <E2EPaywallSuite />
           </StepShell>
         )}
 

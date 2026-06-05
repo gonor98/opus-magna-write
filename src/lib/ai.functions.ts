@@ -640,5 +640,189 @@ Incluye: cámara (medium format), iluminación (Rembrandt suave), pose, vestuari
     return { prompt: text.trim() };
   });
 
+/* ============================================================
+   LIVE FOOTPRINT — Firecrawl search + scrape → real Author DNA
+   Searches YouTube, articles, blogs, LinkedIn, X for the person
+   ============================================================ */
+export const aiLiveFootprint = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      name: z.string().min(2),
+      context: z.string().max(2000).optional(),
+      links: z.array(z.string().url()).max(8).optional(),
+      depth: z.enum(["fast", "deep"]).default("fast"),
+    }).parse,
+  )
+  .handler(async ({ data }) => {
+    const fcKey = process.env.FIRECRAWL_API_KEY;
+    if (!fcKey) throw new Error("Missing FIRECRAWL_API_KEY. Conecta Firecrawl en Connectors.");
+    const { default: Firecrawl } = await import("@mendable/firecrawl-js");
+    const fc = new Firecrawl({ apiKey: fcKey });
+
+    const queries = [
+      `"${data.name}" interview youtube`,
+      `"${data.name}" blog OR article writing`,
+      `"${data.name}" linkedin about`,
+      `"${data.name}" podcast transcript`,
+      `"${data.name}" twitter OR x.com posts`,
+    ];
+    const perQuery = data.depth === "deep" ? 4 : 2;
+
+    type Source = {
+      url: string;
+      title: string;
+      kind: "youtube" | "linkedin" | "twitter" | "article" | "podcast" | "other";
+      snippet: string;
+      markdown?: string;
+    };
+
+    const kindOf = (u: string): Source["kind"] => {
+      if (/youtube\.com|youtu\.be/i.test(u)) return "youtube";
+      if (/linkedin\.com/i.test(u)) return "linkedin";
+      if (/(twitter\.com|x\.com)/i.test(u)) return "twitter";
+      if (/podcast|spotify|apple\.com\/.*podcast/i.test(u)) return "podcast";
+      return "article";
+    };
+
+    const seen = new Set<string>();
+    const sources: Source[] = [];
+
+    // 1) live SEARCH
+    await Promise.all(
+      queries.map(async (q) => {
+        try {
+          const r: any = await fc.search(q, { limit: perQuery });
+          const results: any[] = r?.web ?? r?.data ?? r?.results ?? [];
+          for (const it of results) {
+            const url = it.url || it.link;
+            if (!url || seen.has(url)) continue;
+            seen.add(url);
+            sources.push({
+              url,
+              title: it.title || url,
+              kind: kindOf(url),
+              snippet: (it.description || it.snippet || "").slice(0, 400),
+            });
+          }
+        } catch (e) {
+          console.warn("[firecrawl search]", q, (e as Error)?.message);
+        }
+      }),
+    );
+
+    // 2) user-provided links jump to front
+    for (const u of data.links || []) {
+      if (!seen.has(u)) {
+        seen.add(u);
+        sources.unshift({ url: u, title: u, kind: kindOf(u), snippet: "(provided by user)" });
+      }
+    }
+
+    // 3) SCRAPE top N to markdown for AI context
+    const TOP = data.depth === "deep" ? 8 : 5;
+    const toScrape = sources.slice(0, TOP);
+    await Promise.all(
+      toScrape.map(async (s) => {
+        try {
+          const r: any = await fc.scrape(s.url, {
+            formats: ["markdown"],
+            onlyMainContent: true,
+          });
+          const md: string = r?.markdown ?? r?.data?.markdown ?? "";
+          s.markdown = md.slice(0, 6000);
+        } catch (e) {
+          console.warn("[firecrawl scrape]", s.url, (e as Error)?.message);
+        }
+      }),
+    );
+
+    // 4) AI synthesis → real DNA
+    const corpus = toScrape
+      .map(
+        (s, i) =>
+          `### Fuente ${i + 1} [${s.kind}] ${s.title}\nURL: ${s.url}\n${s.markdown || s.snippet}`,
+      )
+      .join("\n\n---\n\n")
+      .slice(0, 35000);
+
+    const gateway = getGateway();
+    const { object } = await generateObject({
+      model: gateway(DEFAULT_TEXT_MODEL),
+      schema: z.object({
+        bio: z.string(),
+        mission: z.string(),
+        voiceSamples: z.string(),
+        arquetipo: z.string(),
+        vocabulario: z.array(z.string()).max(20),
+        catchphrases: z.array(z.string()).max(12),
+        themes: z.array(z.string()).max(10),
+        platforms: z
+          .array(z.object({ name: z.string(), url: z.string().optional(), insight: z.string() }))
+          .max(10),
+        narrativeBeats: z.array(z.string()).max(8),
+        forbiddenPhrases: z.array(z.string()).max(8),
+        confidenceScore: z.number().min(0).max(100),
+      }),
+      prompt: `Eres OSINT senior + Editor Jefe literario. A partir del CORPUS REAL extraído de internet, reconstruye la HUELLA DIGITAL y la VOZ AUTORAL de "${data.name}".
+
+Contexto extra: ${data.context || "(n/a)"}
+
+CORPUS (fuentes vivas):
+${corpus || "(sin corpus — usa razonamiento general y baja el confidenceScore)"}
+
+Devuelve JSON: bio (5-7 frases sustanciosas con datos reales), mission, voiceSamples (4-6 citas o paráfrasis SACADAS del corpus, no inventes), arquetipo narrativo, vocabulario (10-15 palabras recurrentes), catchphrases reales, themes (5-8 obsesiones), platforms con insight por canal, narrativeBeats (estructura típica de sus piezas), forbiddenPhrases (clichés que JAMÁS usa), confidenceScore 0-100 calibrado al volumen y calidad del corpus.
+Si el corpus es pobre, dilo en bio y baja confidence.`,
+    });
+
+    return {
+      dossier: object,
+      sources: sources.map((s) => ({ url: s.url, title: s.title, kind: s.kind, snippet: s.snippet })),
+      scrapedCount: toScrape.filter((s) => s.markdown).length,
+      totalFound: sources.length,
+    };
+  });
+
+/* ============================================================
+   SSML VALIDATION — pre-flight TTS/ACX checks
+   ============================================================ */
+export const aiValidateSSML = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ ssml: z.string().min(1), chapterTitle: z.string().optional() }).parse)
+  .handler(async ({ data }) => {
+    const issues: { level: "error" | "warning" | "info"; code: string; message: string }[] = [];
+    const s = data.ssml;
+    if (!/<speak[\s>]/.test(s) || !/<\/speak>/.test(s))
+      issues.push({ level: "error", code: "no_speak", message: "Falta envoltura <speak>…</speak>." });
+    const opens = (s.match(/<break\b/g) || []).length;
+    if (opens === 0) issues.push({ level: "warning", code: "no_breaks", message: "Sin <break/> — la narración sonará monótona." });
+    if (opens > 400) issues.push({ level: "warning", code: "too_many_breaks", message: `Demasiados <break/> (${opens}).` });
+    const len = s.length;
+    if (len > 8000) issues.push({ level: "warning", code: "long_chunk", message: `SSML >8k chars (${len}). Divide para ACX.` });
+    if (len < 400) issues.push({ level: "error", code: "too_short", message: "SSML demasiado corto (<400 chars)." });
+    const prons = s.match(/\[PRON:[^\]]+\]/g) || [];
+    const badPron = prons.filter((p) => !/\[PRON:[a-záéíóúñü .'-]+=[a-záéíóúñü .'-]+\]/i.test(p));
+    if (badPron.length) issues.push({ level: "error", code: "bad_pron", message: `Marcas [PRON:…] mal formadas: ${badPron.length}.` });
+    if (/<emphasis(?![^>]*level=)/.test(s))
+      issues.push({ level: "info", code: "emphasis_default", message: "<emphasis> sin level explícito." });
+    if (/[<>]/.test(s.replace(/<[^>]+>/g, "")))
+      issues.push({ level: "error", code: "stray_brackets", message: "Caracteres < o > sueltos fuera de tags." });
+    const balanceOK =
+      (s.match(/<prosody\b/g) || []).length === (s.match(/<\/prosody>/g) || []).length &&
+      (s.match(/<emphasis\b/g) || []).length === (s.match(/<\/emphasis>/g) || []).length;
+    if (!balanceOK) issues.push({ level: "error", code: "unbalanced_tags", message: "Tags <prosody>/<emphasis> sin cerrar." });
+
+    const errors = issues.filter((i) => i.level === "error").length;
+    const warnings = issues.filter((i) => i.level === "warning").length;
+    return {
+      ok: errors === 0,
+      score: Math.max(0, 100 - errors * 25 - warnings * 8),
+      errors,
+      warnings,
+      issues,
+      chapterTitle: data.chapterTitle || null,
+      stats: { chars: len, breaks: opens, prons: prons.length },
+    };
+  });
+
+
 
 

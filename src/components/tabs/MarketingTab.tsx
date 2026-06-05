@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore } from "@/lib/store";
-import { aiMarketing, aiACXScript, aiTranslate } from "@/lib/ai.functions";
+import { aiMarketing, aiACXScript, aiTranslate, aiValidateSSML } from "@/lib/ai.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -127,6 +127,7 @@ function AudiobookAndTranslate() {
 
   const acxFn = useServerFn(aiACXScript);
   const trFn = useServerFn(aiTranslate);
+  const validateSSMLFn = useServerFn(aiValidateSSML);
 
   const generateACX = async () => {
     const ch = chapters[chapterIdx];
@@ -166,12 +167,23 @@ function AudiobookAndTranslate() {
     toast.success("Script ACX descargado");
   };
 
-  const downloadSSML = () => {
+  const downloadSSML = async () => {
     if (!acxScript) return;
     const ch = chapters[chapterIdx];
     const ssml = acxToSSML(acxScript, { voice: voiceName, lang: "es-ES" });
+    // Pre-flight SSML validation — block if errors
+    try {
+      const v = await validateSSMLFn({ data: { ssml, chapterTitle: ch?.title } });
+      if (!v.ok) {
+        toast.error(`SSML bloqueado: ${v.errors} errores. ${v.issues[0]?.message ?? ""}`);
+        return;
+      }
+      if (v.warnings > 0) toast.warning(`SSML válido con ${v.warnings} warnings. Score ${v.score}/100.`);
+    } catch (e) {
+      console.warn("[ssml validate]", e);
+    }
     downloadBlob(new Blob([ssml], { type: "application/ssml+xml;charset=utf-8" }), `${safeName(ch?.title || "")}.ssml`);
-    toast.success("SSML listo para TTS/producción");
+    toast.success("SSML validado y listo para TTS/producción");
   };
 
   const downloadWAV = () => {
