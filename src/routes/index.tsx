@@ -84,6 +84,7 @@ function Studio() {
         {currentStep === 1 && <IkigaiEngine />}
         {currentStep === 2 && (
           <StepShell title="ADN del autor" subtitle="Paso 2 · Clonación de identidad multimodal">
+            <AuthorResearch />
             <AutoPilot chapterCount={10} />
             <AuthorDNATab />
           </StepShell>
