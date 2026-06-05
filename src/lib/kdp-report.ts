@@ -49,18 +49,19 @@ export async function buildKDPReport(): Promise<KDPReport> {
       wordCount: wordCount(s.chapters),
       chapterCount: s.chapters.length,
     } as any);
-    (m?.issues || []).forEach((it: any) =>
+    (m?.findings || []).forEach((it) =>
       findings.push({
         area: "manuscript",
-        level: it.level || "warning",
-        field: it.field || "manuscript",
-        message: it.message || String(it),
-        recommendation: it.fix,
+        level: mapLevel(it.level),
+        field: it.id,
+        message: it.label,
+        recommendation: it.detail,
       }),
     );
   } catch (e) {
     findings.push({ area: "manuscript", level: "warning", field: "validator", message: (e as Error).message });
   }
+
 
   // Metadata granular
   findings.push(okBadge(!!s.publishingForm.author, "author", "Autor vacío.", "metadata", "Pon tu nombre legal o pseudónimo."));
