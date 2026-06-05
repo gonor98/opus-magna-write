@@ -89,6 +89,7 @@ function Studio() {
         )}
         {currentStep === 3 && (
           <StepShell title="Bestseller Matrix" subtitle="Paso 3 · Estructura de alta retención">
+            <AIBookBuilder />
             <ManuscriptTab forceView="corkboard" />
           </StepShell>
         )}
@@ -101,11 +102,13 @@ function Studio() {
           <StepShell title="Diseño & Exportar" subtitle="Paso 5 · Portada + KDP-ready">
             <DesignTab />
             <MatterTab />
+            <KDPReportPanel />
           </StepShell>
         )}
         {currentStep === 6 && (
           <StepShell title="Launch & Marketing" subtitle="Paso 6 · Audiolibro, traducción, distribución">
             <MarketingTab />
+            <E2EPaywallSuite />
           </StepShell>
         )}
 
