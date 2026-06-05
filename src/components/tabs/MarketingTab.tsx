@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
 import { useServerFn } from "@tanstack/react-start";
 import { useBookStore } from "@/lib/store";
-import { aiMarketing, aiACXScript, aiTranslate } from "@/lib/ai.functions";
+import { aiMarketing, aiACXScript, aiTranslate, aiValidateSSML } from "@/lib/ai.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
