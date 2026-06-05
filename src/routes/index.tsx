@@ -76,6 +76,7 @@ function Studio() {
   return (
     <div className="min-h-screen bg-background">
       {!focus && <Header focusMode={focus} setFocusMode={setFocus} />}
+      {!focus && <ResumeBanner />}
       {!focus && <GoldenPathStepper />}
 
       <main className={"mx-auto px-6 py-8 " + (focus ? "max-w-4xl" : "max-w-[1400px]")}>
