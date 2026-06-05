@@ -1,6 +1,14 @@
 import jsPDF from "jspdf";
 import { useBookStore, wordCount } from "@/lib/store";
-import { validateManuscriptForKDP, validateCoverImage } from "@/lib/kdp-specs";
+import {
+  validateManuscriptForKDP,
+  validateCoverImage,
+  buildCoverSpec,
+  type Finding,
+} from "@/lib/kdp-specs";
+
+const mapLevel = (l: Finding["level"]): "error" | "warning" | "info" | "ok" =>
+  l === "warn" ? "warning" : l;
 
 export type ReportFinding = {
   area: "cover" | "manuscript" | "metadata" | "epub" | "docx" | "audio";
