@@ -13,6 +13,7 @@ import { MatterTab } from "@/components/tabs/MatterTab";
 import { DesignTab } from "@/components/tabs/DesignTab";
 import { MarketingTab } from "@/components/tabs/MarketingTab";
 import { AutoPilot } from "@/components/autopilot/AutoPilot";
+import { AuthorResearch } from "@/components/research/AuthorResearch";
 import { AIBookBuilder } from "@/components/ai-book/AIBookBuilder";
 import { KDPReportPanel } from "@/components/kdp/KDPReportPanel";
 import { E2EPaywallSuite } from "@/components/diagnostics/E2EPaywallSuite";
