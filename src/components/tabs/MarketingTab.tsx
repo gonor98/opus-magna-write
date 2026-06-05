@@ -166,12 +166,24 @@ function AudiobookAndTranslate() {
     toast.success("Script ACX descargado");
   };
 
-  const downloadSSML = () => {
+  const downloadSSML = async () => {
     if (!acxScript) return;
     const ch = chapters[chapterIdx];
     const ssml = acxToSSML(acxScript, { voice: voiceName, lang: "es-ES" });
+    // Pre-flight SSML validation — block if errors
+    try {
+      const validate = useServerFn(aiValidateSSML);
+      const v = await validate({ data: { ssml, chapterTitle: ch?.title } });
+      if (!v.ok) {
+        toast.error(`SSML bloqueado: ${v.errors} errores. ${v.issues[0]?.message ?? ""}`);
+        return;
+      }
+      if (v.warnings > 0) toast.warning(`SSML válido con ${v.warnings} warnings. Score ${v.score}/100.`);
+    } catch (e) {
+      console.warn("[ssml validate]", e);
+    }
     downloadBlob(new Blob([ssml], { type: "application/ssml+xml;charset=utf-8" }), `${safeName(ch?.title || "")}.ssml`);
-    toast.success("SSML listo para TTS/producción");
+    toast.success("SSML validado y listo para TTS/producción");
   };
 
   const downloadWAV = () => {
