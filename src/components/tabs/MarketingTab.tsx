@@ -173,8 +173,7 @@ function AudiobookAndTranslate() {
     const ssml = acxToSSML(acxScript, { voice: voiceName, lang: "es-ES" });
     // Pre-flight SSML validation — block if errors
     try {
-      const validate = useServerFn(aiValidateSSML);
-      const v = await validate({ data: { ssml, chapterTitle: ch?.title } });
+      const v = await validateSSMLFn({ data: { ssml, chapterTitle: ch?.title } });
       if (!v.ok) {
         toast.error(`SSML bloqueado: ${v.errors} errores. ${v.issues[0]?.message ?? ""}`);
         return;
