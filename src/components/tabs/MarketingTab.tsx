@@ -127,6 +127,7 @@ function AudiobookAndTranslate() {
 
   const acxFn = useServerFn(aiACXScript);
   const trFn = useServerFn(aiTranslate);
+  const validateSSMLFn = useServerFn(aiValidateSSML);
 
   const generateACX = async () => {
     const ch = chapters[chapterIdx];
