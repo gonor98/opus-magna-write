@@ -52,7 +52,7 @@ export function AIBookBuilder() {
       if (!s.authorDNA.extractedPersona) {
         setPhase("persona"); setCurrentMsg("🧬 Sintetizando bible de voz…");
         const p = await fnPersona({ data: { bio: s.authorDNA.bio || "(genérico)", mission: s.authorDNA.mission, voiceSamples: s.authorDNA.voiceSamples || "" } });
-        useBookStore.getState().setAuthorDNA({ extractedPersona: p.persona || p.text || "" });
+        useBookStore.getState().setAuthorDNA({ extractedPersona: p.text || "" });
       }
       setProgress(20);
 
@@ -88,7 +88,7 @@ export function AIBookBuilder() {
             tone,
           },
         });
-        useBookStore.getState().updateChapter(ch.id, { content: w.content || w.text || "" });
+        useBookStore.getState().updateChapter(ch.id, { content: w.text || "" });
         setProgress(30 + Math.round(((i + 1) / newChapters.length) * 65));
       }
 
@@ -126,7 +126,7 @@ export function AIBookBuilder() {
           tone,
         },
       });
-      useBookStore.getState().replaceChapterContent(ch.id, w.content || w.text || "", `Regen IA · ${ch.title}`);
+      useBookStore.getState().replaceChapterContent(ch.id, w.text || "", `Regen IA · ${ch.title}`);
       toast.success(`Capítulo "${ch.title}" regenerado.`);
     } catch (e: any) {
       toast.error(e?.message || "Error en regeneración");
