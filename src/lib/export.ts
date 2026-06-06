@@ -762,11 +762,16 @@ nav .group-title{margin-top:1em;font-weight:bold;text-transform:uppercase;letter
   zip.file("OEBPS/content.opf", opf);
 
   const blob = await zip.generateAsync({ mimeType: "application/epub+zip", type: "blob" });
+  const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
+  const filename = `${slugify(p.bookContext.title)}${suffix}.epub`;
+  if (options?.returnBlob) {
+    tracker.done("package", "EPUB Blob listo");
+    return { blob, filename };
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
-  a.download = `${slugify(p.bookContext.title)}${suffix}.epub`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
   tracker.done("package", "Descarga iniciada");
