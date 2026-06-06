@@ -30,6 +30,8 @@ export type ExportOptions = {
   /** 1-indexed inclusive chapter range. Omit to export all chapters. */
   chapterRange?: { from: number; to: number };
   signal?: AbortSignal;
+  /** If true, return Blob instead of triggering a download (used by Library Pack). */
+  returnBlob?: boolean;
 };
 
 export class ExportStepError extends Error {
