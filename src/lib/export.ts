@@ -955,11 +955,16 @@ export async function exportDOCX(p: ExportPayload, onProgress?: OnProgress, opti
       }],
     });
     const blob = await Packer.toBlob(doc);
+    const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
+    const filename = `${slugify(p.bookContext.title)}${suffix}.docx`;
+    if (options?.returnBlob) {
+      tracker.done("save", "DOCX Blob listo");
+      return { blob, filename };
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
-    a.download = `${slugify(p.bookContext.title)}${suffix}.docx`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
     tracker.done("save", "Descarga iniciada");
