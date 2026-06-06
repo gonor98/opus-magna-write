@@ -11,6 +11,8 @@ export type PrintCoverInput = {
   backDataUrl?: string | null;
   spineColor?: string;
   backCopy?: string;
+  /** If true, return Blob instead of triggering a download. */
+  returnBlob?: boolean;
 };
 
 /** Generates a print-ready KDP cover SPREAD PDF (front + spine + back + bleed). */
