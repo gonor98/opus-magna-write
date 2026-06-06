@@ -16,6 +16,7 @@ import { AutoPilot } from "@/components/autopilot/AutoPilot";
 import { AuthorResearch } from "@/components/research/AuthorResearch";
 import { AIBookBuilder } from "@/components/ai-book/AIBookBuilder";
 import { KDPReportPanel } from "@/components/kdp/KDPReportPanel";
+import { LibraryPackPanel } from "@/components/library-pack/LibraryPackPanel";
 import { E2EPaywallSuite } from "@/components/diagnostics/E2EPaywallSuite";
 import { ResumeBanner } from "@/components/layout/ResumeBanner";
 import { Button } from "@/components/ui/button";
