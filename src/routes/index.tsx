@@ -106,6 +106,7 @@ function Studio() {
             <DesignTab />
             <MatterTab />
             <KDPReportPanel />
+            <LibraryPackPanel />
           </StepShell>
         )}
         {currentStep === 6 && (
