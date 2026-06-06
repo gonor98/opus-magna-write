@@ -477,7 +477,13 @@ export async function exportPDF(p: ExportPayload, onProgress?: OnProgress, optio
     }
   }
   const suffix = options?.chapterRange ? `-cap${options.chapterRange.from}-${options.chapterRange.to}` : "";
-  doc.save(`${slugify(p.bookContext.title)}${suffix}.pdf`);
+  const filename = `${slugify(p.bookContext.title)}${suffix}.pdf`;
+  if (options?.returnBlob) {
+    const blob = doc.output("blob");
+    tracker.done("save", "PDF Blob listo");
+    return { blob, filename };
+  }
+  doc.save(filename);
   tracker.done("save", "Descarga iniciada · márgenes gutter + folios");
   });
 }
