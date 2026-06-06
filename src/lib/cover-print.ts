@@ -11,6 +11,8 @@ export type PrintCoverInput = {
   backDataUrl?: string | null;
   spineColor?: string;
   backCopy?: string;
+  /** If true, return Blob instead of triggering a download. */
+  returnBlob?: boolean;
 };
 
 /** Generates a print-ready KDP cover SPREAD PDF (front + spine + back + bleed). */
@@ -85,7 +87,11 @@ export async function generatePrintableCoverPDF(input: PrintCoverInput) {
   doc.line(spineX, 0, spineX, H);
   doc.line(spineX + spec.spineIn, 0, spineX + spec.spineIn, H);
 
-  doc.save(`KDP-Cover-Spread-${input.title.replace(/\s+/g, "_")}.pdf`);
-
+  const filename = `KDP-Cover-Spread-${input.title.replace(/\s+/g, "_")}.pdf`;
+  if (input.returnBlob) {
+    const blob = doc.output("blob");
+    return { spec, blob, filename };
+  }
+  doc.save(filename);
   return { spec };
 }
